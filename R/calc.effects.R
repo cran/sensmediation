@@ -17,6 +17,29 @@
 #'@return A list with elements:
 #'\item{effects}{A list with elements \code{NIE} and \code{NDE},  row matrices with the estimated NIE and NDE (or NIE* and NDE* if \code{alt.decomposition = TRUE}) for each value of the sensitivity parameter \code{Rho}.}
 #'\item{std.errs}{A list with elements \code{se.nie} and \code{se.nde},  row matrices with the estimated standard errors for the natural direct and indirect effects for the different values of the sensitivity parameter \code{Rho}.}
+#'\item{betas}{list of the estimated mediator model parameters over \code{Rho}, with
+#'\itemize{
+#'\item \code{beta0} Intercept
+#'\item \code{beta1} Exposure
+#'\item \code{beta2} Covariates
+#'\item \code{beta3} Exposure-covariate interactions
+#'}
+#'Components that are not included in the input mediator model are set to 0.}
+#'\item{thetas}{list of the estimated outcome model parameters over \code{Rho}, with
+#'\itemize{
+#'\item \code{theta0} Intercept
+#'\item \code{theta1} Exposure
+#'\item \code{theta2} Mediator
+#'\item \code{theta3} Exposure-mediator interaction
+#'\item \code{theta4} Covariates
+#'\item \code{theta5} Exposure-covariate interactions
+#'\item \code{theta6} Mediator-covariate interactions
+#'\item \code{theta7} Exposure-mediator-covariate interactions
+#'}
+#'Components that are not included in the input outcome model are set to 0.}
+#'\item{part.deriv}{List with the partial derivatives of the NDE (Lambda), NIE (Gamma) and TE (Eta) wrt the mediator and outcome model parameters for each value of \code{Rho}}
+#'\item{sigma.thetabeta}{a list with the joint covariance matrix of the outcome and mediator model parameters for each value of \code{Rho}. Note that the covariance matrix is constructed for all estimated parameters listed in \code{betas} and \code{thetas} but that components not included in the input mediator and outcome models are set to 0.}
+#'\item{covariates}{list of the covariate values that the effects are conditioned on.}
 #'@author Anita Lindmark
 #'@seealso \code{\link{sensmediation}}
 #'@export
@@ -29,6 +52,7 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
   nrho <- length(ML.object$Rho)
   Rho <- ML.object$Rho
 
+  # Storage of mediator and outcome model objects depending on type of confounding
   if(type == "zm"){
     model.med <- ML.object$model.resp
     model.out <- out.model
@@ -42,62 +66,10 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
     model.out <- ML.object$model.resp
   }
 
+  # Is the mediator model linear and the outcome model probit?
   cb <- model.med$family$family == "gaussian" & model.out$family$link == "probit"
-    # -----------------------------------------------------------------------------------------------
-
-  # Finding the position of the different types of regression coefficients in the mediator and outcome models --
-  pos.theta1 <- match(exp.name, names(model.out$coefficients))
-  if(is.na(pos.theta1))
-    stop("The exposure is either missing from the response model or incorrectly named in exp.name.")
-
-  pos.beta1 <- match(exp.name, names(model.med$coefficients))
-  if(is.na(pos.beta1))
-    stop("The exposure is either missing from the mediator model or incorrectly named in exp.name.")
-
-  pos.theta2 <- match(med.name, names(model.out$coefficients))
-  if(is.na(pos.theta2))
-    stop("The mediator is either missing from the response model or incorrectly named in med.name.")
-
-  # Identifying positions with interaction terms.
-  out.split <- strsplit(names(model.out$coefficients), ":") # Split model terms by ":"
-  med.split <- strsplit(names(model.med$coefficients), ":")
-  logical.int.out <- sapply(lapply(out.split, length), ">", 1)
-  logical.int.med <- sapply(lapply(med.split, length), ">", 1)
-  int.out.split <- out.split[logical.int.out]
-  int.med.split <- med.split[logical.int.med]
-  pos.out <- c(1:length(out.split))
-  pos.med <- c(1:length(med.split))
-  pos.int.out <- pos.out[logical.int.out]
-  pos.int.med <- pos.med[logical.int.med]
-
-  # Logical vectors, do the interactions involve the mediator, exposure or both:
-  logical.mint.out <- unlist(lapply(int.out.split, FUN = "%in%" , x = med.name))
-  logical.zint.out <- unlist(lapply(int.out.split, FUN = "%in%" , x = exp.name))
-  logical.zmint.out <- logical.mint.out == TRUE & logical.zint.out == TRUE
-
-  pos.beta3 <- pos.int.med[unlist(lapply(int.med.split, FUN = "%in%" , x = exp.name))]
-
-  pos.zmint <- pos.int.out[logical.zmint.out]
-  pos.theta3 <- pos.zmint[which(unlist(lapply(int.out.split[logical.zmint.out], length)) == 2)]
-  pos.theta7 <- pos.zmint[which(unlist(lapply(int.out.split[logical.zmint.out], length)) > 2)]
-
-  pos.theta6 <- pos.int.out[logical.mint.out]
-  if(length(pos.zmint))
-    pos.theta6 <- pos.theta6[-which(pos.theta6%in%pos.zmint)]
-
-  pos.theta5 <- pos.int.out[logical.zint.out]
-  if(length(pos.zmint))
-    pos.theta5 <- pos.theta5[-which(pos.theta5%in%pos.zmint)]
-
-  indic.interc.out <- ifelse(attributes(model.out$terms)$intercept == 0, 0, 1)
-  pos.theta4 <- pos.out[-which(pos.out%in%c(indic.interc.out, pos.theta1, pos.theta2, pos.theta3, pos.theta5,
-                                            pos.theta6, pos.theta7))]
-  pos.theta4 <- sort(pos.theta4)
-
-  indic.interc.med <- ifelse(attributes(model.med$terms)$intercept == 0, 0, 1)
-  pos.beta2 <- pos.med[-which(pos.med%in%c(indic.interc.med, pos.beta1, pos.beta3))]
-  pos.beta2 <- sort(pos.beta2)
   # -----------------------------------------------------------------------------------------------
+
 
   # If sensitivity analysis to unobserved exposure-mediator confounding ---------------------------
   if(type == "zm"){
@@ -107,8 +79,7 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
 
     medcoefs <- ML.object$coef # The matrix of mediator model coefficients (not including any sigmas)
     outcoefs <- matrix(out.model$coef, nrow = d.outcoef, ncol = nrho) # The matrix of outcome model coefficients.
-    colnames(outcoefs) <- paste(Rho)                                  # Repeats the glm-coefficients length(Rho) times.
-    rownames(outcoefs) <- names(out.model$coef)
+    dimnames(outcoefs) <- list(names(out.model$coef), paste(Rho))     # Repeats the glm-coefficients length(Rho) times.
 
     # Extracting covariance matrices for the mediator and outcome regression parameters:
     sigma.out <- stats::vcov(out.model) # Covariance matrix for the outcome model
@@ -118,6 +89,7 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
       sigma.eta <- ML.object$sigma.res.resp
     }
 
+    # Creating a list with the covariance matrices of the outcome and mediator model parameters over Rho
     ph <- matrix(0, nrow = d.medcoef + d.outcoef, ncol = d.medcoef + d.outcoef)
     ph[1:d.outcoef, 1:d.outcoef] <- sigma.out
     sigma.pars <- lapply(1:nrho, function(x) x <- ph)
@@ -134,13 +106,14 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
     d.outcoef <- nrow(ML.object$coef)
 
     medcoefs <- matrix(med.model$coef, nrow = d.medcoef, ncol = nrho)
-    colnames(medcoefs) <- paste(Rho)
-    rownames(medcoefs) <- names(med.model$coef)
+    dimnames(medcoefs) <- list(names(med.model$coef), paste(Rho))
+
     outcoefs <- ML.object$coef
 
     # Extracting covariance matrices for the mediator and outcome regression parameters:
     sigma.med <- stats::vcov(med.model)
 
+    # Creating a list with the covariance matrices of the outcome and mediator model parameters over Rho
     if(model.med$family$family=="gaussian" & model.out$family$link=="probit"){
       ph <- matrix(0, nrow = d.medcoef + d.outcoef + 1, ncol = d.medcoef + d.outcoef + 1)
       ph[(d.outcoef + 1):(d.outcoef + d.medcoef), (d.outcoef + 1):(d.outcoef + d.medcoef)] <- sigma.med
@@ -177,6 +150,7 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
     if(cb)
       sigma.eta <- ML.object$sigma.res.expl
 
+    # Creating a list with the covariance matrices of the outcome and mediator model parameters over Rho
     if(model.med$family$link == "probit" & model.out$family$family == "gaussian")
       sigma.pars <- lapply(1:nrho, function(x) ML.object$sigmas[[x]][-(d.outcoef + 1), -(d.outcoef + 1)])
 
@@ -186,139 +160,206 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
   }
   # -----------------------------------------------------------------------------------------------
 
-  ##### Intercepts #####
-  beta0 <- ifelse(rep(attributes(model.med$terms)$intercept, nrho) == 0, rep(0, nrho),
-                  medcoefs[1, ])
-  names(beta0) <- paste(Rho)
-  theta0 <- ifelse(rep(attributes(model.out$terms)$intercept, nrho) == 0, rep(0, nrho),
-                  outcoefs[1, ])
-  names(theta0) <- paste(Rho)
 
-  ##### Exposure and mediator (main effects) #####
+  # -----------------------------------------------------------------------------------------------
+
+  ##### Storing the intercepts of the mediator and outcome models #####
+  beta0 <- medcoefs[1, ]
+  names(beta0) <- paste(Rho)
+
+  theta0 <- outcoefs[1, ]
+  names(theta0) <- paste(Rho)
+  #####
+
+  ##### Storing the exposure and mediator coefficients #####
+  # The position of the exposure coefficient in the outcome model
+  pos.theta1 <- match(exp.name, names(model.out$coefficients))
+  if(is.na(pos.theta1))
+    stop("The exposure is either missing from the outcome model or incorrectly named in exp.name (see documentation for exp.name in the sensmediation function).")
+
   theta1 <- outcoefs[pos.theta1, ]
   names(theta1) <- paste(Rho)
+
+  # The position of the mediator coefficient in the outcome model coefficient vector/matrix
+  pos.theta2 <- match(med.name, names(model.out$coefficients))
+  if(is.na(pos.theta2))
+    stop("The mediator is either missing from the outcome model or incorrectly named in med.name (see documentation for med.name in the sensmediation function).")
+
   theta2 <- outcoefs[pos.theta2, ]
   names(theta2) <- paste(Rho)
+
+  # The position of the exposure coefficient in the mediator model coefficient vector/matrix
+  pos.beta1 <- match(exp.name, names(model.med$coefficients))
+  if(is.na(pos.beta1))
+    stop("The exposure is either missing from the mediator model or incorrectly named in exp.name (see documentation for exp.name in the sensmediation function).")
+
   beta1 <- medcoefs[pos.beta1, ]
   names(beta1) <- paste(Rho)
+  #####
 
-  ##### Covariate coefficients #####
+  ##### Finding the positions of interaction terms and main effects of obs. confounders #####
+  # Identifying positions with interaction terms.
+  out.split <- strsplit(names(model.out$coefficients), ":") # Split outcome model terms by ":"
+  med.split <- strsplit(names(model.med$coefficients), ":") # Split mediator model terms by ":"
+  logical.int.out <- sapply(lapply(out.split, length), ">", 1) # Logical: is the term an interaction term
+  logical.int.med <- sapply(lapply(med.split, length), ">", 1) # Logical: is the term an interaction term
+  int.out.split <- out.split[logical.int.out] # The interaction terms, split by ":"
+  int.med.split <- med.split[logical.int.med] # The interaction terms, split by ":"
+  pos.out <- c(1:length(out.split)) # Positions of coefficients in the outcome model
+  pos.med <- c(1:length(med.split)) # Positions of coefficients in the mediator model
+  pos.int.out <- pos.out[logical.int.out] # Positions of interaction terms in the outcome model coefficient vector/matrix
+  pos.int.med <- pos.med[logical.int.med] # Positions of interaction terms in the mediator model coefficient vector/matrix
+
+  # Logical vectors, do the interactions involve the mediator, exposure or both:
+  logical.mint.out <- unlist(lapply(int.out.split, FUN = "%in%" , x = med.name))
+  logical.zint.out <- unlist(lapply(int.out.split, FUN = "%in%" , x = exp.name))
+  logical.zmint.out <- logical.mint.out == TRUE & logical.zint.out == TRUE
+
+  # Position of the ZX coefficients in the mediator model
+  pos.beta3 <- pos.int.med[unlist(lapply(int.med.split, FUN = "%in%" , x = exp.name))]
+
+  # Position of interactions involving Z and M in the outcome model
+  pos.zmint <- pos.int.out[logical.zmint.out]
+  # Position of the ZM interaction in the outcome model
+  pos.theta3 <- pos.zmint[which(unlist(lapply(int.out.split[logical.zmint.out], length)) == 2)]
+  # Position of the ZMX interactions in the outcome model
+  pos.theta7 <- pos.zmint[which(unlist(lapply(int.out.split[logical.zmint.out], length)) > 2)]
+
+  # Position of the MX coefficients in the outcome model
+  pos.theta6 <- pos.int.out[logical.mint.out]
+  if(length(pos.zmint)) # Eliminating any ZMX-interactions
+    pos.theta6 <- pos.theta6[-which(pos.theta6%in%pos.zmint)]
+
+  # Position of the ZX coefficients in the outcome model
+  pos.theta5 <- pos.int.out[logical.zint.out]
+  if(length(pos.zmint)) # Eliminating any ZMX-interactions
+    pos.theta5 <- pos.theta5[-which(pos.theta5%in%pos.zmint)]
+
+  # Positions of the coefficients of the obs. confounders in the outcome model
+  pos.theta4 <- pos.out[-which(pos.out%in%c(1, pos.theta1, pos.theta2, pos.theta3, pos.theta5,
+                                            pos.theta6, pos.theta7))]
+  pos.theta4 <- sort(pos.theta4)
+
+  # Positions of the coefficients of the obs. confounders in the mediator model
+  pos.beta2 <- pos.med[-which(pos.med%in%c(1, pos.beta1, pos.beta3))]
+  pos.beta2 <- sort(pos.beta2)
+  #####
+
+  ##### Storing the coefficients of the observed confounders in the mediator and outcome models #####
+  # Function to extract the obs. confounder coefficients from a model:
   covariate.coefs <- function(model, pos, coefs, nrho){
-    if(length(pos) == 0){
-      cov.coefs <- matrix(0, nrow = 1, ncol = nrho)
-      covars <- rep(0, length(model$y))
+    if(length(pos) == 0){ # If no obs. confounders included in the model
+      cov.coefs <- matrix(0, nrow = 1, ncol = nrho) # Row matrix of 0:s
+      rownames(cov.coefs) <- ""
     }
-    if(length(pos) > 1){
-      if(nrho == 1){
+    if(length(pos) > 1){ # If more than one obs. confounders included in the model
+      cov.coefs <- coefs[pos, ]
+      if(nrho == 1){ # If only one value of Rho
         cov.coefs <- matrix(coefs[pos,])
         rownames(cov.coefs) <- names(model$coefficients[pos])
       }
-      else{
-        cov.coefs <- coefs[pos, ]
-      }
-
-      covars <- stats::model.matrix(model)[, pos]
 
     }
-
-    if(length(pos) == 1){
+    if(length(pos) == 1){ # If exactly one obs. confounder included in the model
       cov.coefs <- t(as.matrix(coefs[pos, ] ))
       rownames(cov.coefs) <- names(model$coefficients[pos])
-      covars <- stats::model.matrix(model)[, pos]
     }
-    return(list(cov.coefs, covars))
+    return(cov.coefs)
   }
 
-  theta4 <- covariate.coefs(model.out, pos.theta4, outcoefs, nrho)[[1]]
-  colnames(theta4) <- paste(Rho)
-  beta2 <- covariate.coefs(model.med, pos.beta2, medcoefs, nrho)[[1]]
-  colnames(beta2) <- paste(Rho)
-  x.med <- as.matrix(covariate.coefs(model.med, pos.beta2, medcoefs, nrho)[[2]])
-  x.out <- as.matrix(covariate.coefs(model.out, pos.theta4, outcoefs, nrho)[[2]])
-  colnames(x.med) <- rownames(beta2)
-  colnames(x.out) <- rownames(theta4)
+  theta4 <- covariate.coefs(model.out, pos.theta4, outcoefs, nrho)
+  beta2 <- covariate.coefs(model.med, pos.beta2, medcoefs, nrho)
 
-  ##### ZM interaction #####
+  ##### Storing the coefficient of the ZM interaction #####
   theta3 <- ifelse(rep(length(pos.theta3), nrho) == 0, rep(0, nrho),
          outcoefs[pos.theta3, ])
-  names(theta3) <- paste(Rho)
+  colnames(theta4) <- colnames(beta2) <- names(theta3) <- paste(Rho)
 
-  ##### Interactions btw covariates and exposure and/or mediator #####
+  ##### Interactions btw obs. confounders and exposure and/or mediator #####
+  # Function to extract the interaction term coefficients from a model:
   interactions <- function(model, pos, cov.coef, exp.name, med.name, coefs){
 
-    if(length(pos) > ncol(cov.coef))
+    if(length(pos) > nrow(cov.coef))
       stop("Check the mediator and outcome models. Interactions are only allowed if the main effects are also included in the model.")
 
-    int.coefs <- matrix(0, nrow = ncol(cov.coef), ncol = ncol(coefs))
-    matches <- integer(0)
+    int.coefs <- matrix(0, nrow = nrow(cov.coef), ncol = ncol(cov.coef)) # 0 matrix with nrow = number of obs. confounders in model and ncol = length(Rho)
+    matches <- integer(0) # Vector to store matches
 
-    if(length(pos) == ncol(cov.coef)){
-      int.coefs <- coefs[pos, ]
-      matches <- c(1:length(pos))
-      if(ncol(cov.coef) == 1)
-        int.coefs <- t(as.matrix((int.coefs)))
-      if(ncol(cov.coef > 1 & ncol(coefs) == 1))
-        int.coefs <- as.matrix((int.coefs))
+    if(length(pos)){ # If there are interaction terms
+      names.split <- strsplit(names(model$coefficients)[pos], # Split interaction terms on the form exp.name:confounder to get rid of the "exp.name:" part
+                                     paste(exp.name,":", sep=""))
+      names.split <- sapply(names.split, paste, collapse = "")
+      names.split <- strsplit(names.split, paste(":", exp.name, sep="")) # Split interaction terms on the form confounder:exp.name to get rid of the ":exp.name"
+      names.split <- sapply(names.split, paste, collapse = "")
+      names.split <- strsplit(names.split, paste(med.name,":", sep="")) # Split interaction terms on the form med.name:confounder to get rid of the "med.name:" part
+      names.split <- sapply(names.split, paste, collapse = "")
+      names.split <- strsplit(names.split, paste(":", med.name, sep="")) # Split interaction terms on the form confounder:med.name to get rid of the ":med.name" part
+      names.split <- sapply(names.split, paste, collapse = "")
+
+      matches <- match(names.split, rownames(cov.coef)) # Find matches between the obs. confounders involved in interactions and all obs. confounders.
+
+      int.coefs[matches, ] <- coefs[pos, ] # Store interactions in the correct positions in int.coefs.
+
     }
 
-    if(length(pos) > 0 & length(pos) != ncol(cov.coef)){
-      names.split <- unlist(strsplit(names(model$coefficients)[pos],
-                                     paste(exp.name,":", sep="")))
-      names.split <- unlist(strsplit(names.split, paste(":", exp.name, sep="")))
-      names.split <- unlist(strsplit(names.split, paste(med.name,":", sep="")))
-      names.split <- unlist(strsplit(names.split, paste(":", med.name, sep="")))
-      matches <- which(!is.na(match(colnames(cov.coef), names.split)))
-      int.coefs[matches, ] <- coefs[pos, ]
-    }
-
-    return(list("int.coefs" = int.coefs, "matches" = matches))
+    return(list("int.coefs" = int.coefs, "matches" = matches)) # Return int.coefs and the vector of matches.
   }
 
-  theta5 <- interactions(model.out, pos.theta5, x.out, exp.name, med.name, outcoefs)$int.coefs
-  rownames(theta5) <- paste(exp.name, ":", rownames(theta4), sep = "")
-  colnames(theta5) <- paste(Rho)
-  matches.theta5 <- interactions(model.out, pos.theta5, x.out, exp.name, med.name, outcoefs)$matches
+  # Interaction term coefficients for exposure-obs. confounder interactions in the outcome model:
+  interactions.theta5 <- interactions(model.out, pos.theta5, theta4, exp.name, med.name, outcoefs)
+  theta5 <- interactions.theta5$int.coefs
+  dimnames(theta5) <- list(paste(exp.name, ":", rownames(theta4), sep = ""), paste(Rho))
+  matches.theta5 <- interactions.theta5$matches
 
-  theta6 <- interactions(model.out, pos.theta6, x.out, exp.name, med.name, outcoefs)$int.coefs
-  rownames(theta6) <- paste(med.name, ":", rownames(theta4), sep = "")
-  colnames(theta6) <- paste(Rho)
-  matches.theta6 <- interactions(model.out, pos.theta6, x.out, exp.name, med.name, outcoefs)$matches
+  # Interaction term coefficients for mediator-obs. confounder interactions in the outcome model:
+  interactions.theta6 <- interactions(model.out, pos.theta6, theta4, exp.name, med.name, outcoefs)
+  theta6 <- interactions.theta6$int.coefs
+  dimnames(theta6) <- list(paste(med.name, ":", rownames(theta4), sep = ""), paste(Rho))
+  matches.theta6 <- interactions.theta6$matches
 
-  theta7 <- interactions(model.out, pos.theta7, x.out, exp.name, med.name, outcoefs)$int.coefs
-  rownames(theta7) <- paste(exp.name, ":", med.name, ":", rownames(theta4), sep = "")
-  colnames(theta7) <- paste(Rho)
-  matches.theta7 <- interactions(model.out, pos.theta7, x.out, exp.name, med.name, outcoefs)$matches
+  # Interaction term coefficients for exposure-mediator-obs. confounder interactions in the outcome model:
+  interactions.theta7 <- interactions(model.out, pos.theta7, theta4, exp.name, med.name, outcoefs)
+  theta7 <- interactions.theta7$int.coefs
+  dimnames(theta7) <- list(paste(exp.name, ":", med.name, ":", rownames(theta4), sep = ""), paste(Rho))
+  matches.theta7 <- interactions.theta7$matches
 
-  beta3 <- interactions(model.med, pos.beta3, x.med, exp.name, med.name, medcoefs)$int.coefs
-  rownames(beta3) <- paste(exp.name, ":", rownames(beta2), sep = "")
-  colnames(beta3) <- paste(Rho)
-  matches.beta3 <- interactions(model.med, pos.beta3, x.med, exp.name, med.name, medcoefs)$matches
-
+  # Interaction term coefficients for exposure-obs. confounder interactions in the mediator model:
+  interactions.beta3 <- interactions(model.med, pos.beta3, beta2, exp.name, med.name, medcoefs)
+  beta3 <- interactions.beta3$int.coefs
+  dimnames(beta3) <- list(paste(exp.name, ":", rownames(beta2), sep = ""), paste(Rho))
+  matches.beta3 <- interactions.beta3$matches
 
   betas <- list("beta0" = beta0, "beta1" = beta1, "beta2" = beta2, "beta3" = beta3)
   thetas <- list("theta0" = theta0, "theta1" = theta1, "theta2" = theta2, "theta3" = theta3,
                  "theta4" = theta4, "theta5" = theta5, "theta6" = theta6, "theta7" = theta7)
+
   # -----------------------------------------------------------------------------------------------
 
-  # Reordering the covariance matrices and augmenting them with zeroes (if necessary) -----------------------------
-  pos.reord <- c(indic.interc.out, pos.theta1, pos.theta2, pos.theta3, pos.theta4, pos.theta5,
-                 pos.theta6, pos.theta7, indic.interc.med*(length(model.out$coefficients)+1),
-                 c(pos.beta1, pos.beta2, pos.beta3) + length(model.out$coefficients),
-                 ifelse(cb, length(model.out$coefficients) + length(model.med$coefficients) + 1, 0) )
+  # Reordering the covariance matrices and augmenting them with 0:s (if necessary) -----------------------------
+  # Ordering the covariance matrix of theta and beta in the order theta0, theta1, theta2, theta3, theta4,
+  # theta5, theta6, theta7, beta0, beta1, beta2, beta3.
+  pos.reord <- c(1, pos.theta1, pos.theta2, pos.theta3, pos.theta4, pos.theta5,
+                 pos.theta6, pos.theta7, length(model.out$coefficients)+1,
+                 c(pos.beta1, pos.beta2, pos.beta3) + length(model.out$coefficients) )
+  if(cb)
+    pos.reord <- c(pos.reord, length(model.out$coefficients) + length(model.med$coefficients) + 1)
 
   sigma.pars <- lapply(sigma.pars, function(x) x[pos.reord, pos.reord])
 
+  # Dimensions of full mediator and outcome models, i.e. models with all interactions involving exposure and mediator
   dim.full.out <- 4 + 4*nrow(theta4)
   dim.full.med <- 2 + 2*nrow(beta2) + ifelse(cb, 1, 0)
   dim.full <- dim.full.out + dim.full.med
 
+  # If the mediator and outcome model does not contain all interactions involving exposure and mediator
+  # the covariance matrix is augmented with 0:s in the places where interactions are "missing"
   if(length(pos.reord) != dim.full){
     ph.full <- matrix(0, nrow = dim.full, ncol = dim.full)
     sigma.full <- lapply(1:nrho, function(x) x <- ph.full)
 
-    int.m <- indic.interc.med *( dim.full.out + 1)
+    int.m <- dim.full.out + 1
 
-    pos.sigma <- c(indic.interc.out, 2, 3, ifelse(length(pos.theta3)==0, 0, 4),
+    pos.sigma <- c(1, 2, 3, ifelse(length(pos.theta3)==0, 0, 4),
                    seq(1, length(pos.theta4), length.out = length(pos.theta4)) + 4,
                    length(pos.theta4) + 4 + matches.theta5, length(pos.theta4)*2 + 4 + matches.theta6,
                    length(pos.theta4)*3 + 4 + matches.theta7, int.m, dim.full.out + 2,
@@ -327,29 +368,82 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
 
     sigma.full <- lapply(1:nrho, function(x){ sigma.full[[x]][pos.sigma, pos.sigma] <- sigma.pars[[x]]; sigma.full[[x]] })
 
+
     sigma.pars <- sigma.full
   }
+
+  names.sf <- c("(Intercept)", exp.name, med.name, paste(exp.name, ":", med.name, sep = ""),
+                rownames(theta4), rownames(theta5), rownames(theta6), rownames(theta7), "(Intercept)",
+                exp.name, rownames(beta2), rownames(beta3))
+
+  if(cb)
+    names.sf <- c(names.sf, "sigma.eta")
+
+  sigma.pars <- lapply(1:nrho, function(X){ dimnames(sigma.pars[[X]]) <- list(names.sf, names.sf); sigma.pars[[X]]})
+  names(sigma.pars) <- paste(Rho)
+
   # -----------------------------------------------------------------------------------------------
 
+  # If marginal effects are to be calculated ------------------------------------------------------
+  if(is.null(covariates)){
+    if(length(pos.beta2)>0) # If there are obs. confounders in the mediator model
+      x.med <- as.matrix(stats::model.matrix(model.med)[, pos.beta2]) # Covariate matrix with the obs. confounders in the mediator model
+    else # If there are no obs. confounders in the mediator model
+      x.med <- as.matrix(rep(0, length(model.med$y))) # A "covariate matrix" consisting of 0:s
+
+    if(length(pos.theta4)>0) # If there are obs. confounders in the outcome model
+      x.out <- as.matrix(stats::model.matrix(model.out)[, pos.theta4]) # Covariate matrix with the obs. confounders in the outcome model
+    else # If there are no obs. confounders in the outcome model
+      x.out <- as.matrix(rep(0, length(model.out$y))) # A "covariate matrix" consisting of 0:s
+  }
   # If conditional effects are to be calculated ---------------------------------------------------------------
   if(!is.null(covariates)){
 
-    med.w <- match(colnames(x.med), names(covariates), nomatch = 0)
-    w.med <- match(names(covariates)[med.w], rownames(beta2), nomatch = 0)
+    unused.covars <- NULL # Storage for covariates not identified in the models
+    data.med <- stats::model.frame(model.med) # Mediator model frame
+    data.out <- stats::model.frame(model.out) # Outcome model frame
+    for(p in 1:length(covariates)){ # For each of the covariates in the list
+      cn <- names(covariates[p]) # Name of the p:th covariate given in the list
+      if(cn%in%colnames(data.med)){ # If cn found in the mediator model frame
+        if(is.character(data.med[,cn]))
+          stop("Variables specified in covariates may not be of class 'character'.")
+        if(is.factor(data.med[,cn])){ # If cn is a factor
+          data.med[,cn] <- factor(covariates[[p]], levels = levels(data.med[,cn])) # Value of cn for all observation set to the one given in the list
+        } else {
+          data.med[,cn] <- covariates[[p]] # Value of cn for all observation set to the one given in the list
+        }
+      }
+      if(cn%in%colnames(data.out)){ # If cn found in the outcome model frame
+        if(is.factor(data.out[,cn])){ # If cn is a factor
+          if(covariates[[p]]%in%levels(data.out[,cn]))
+            data.out[,cn] <- factor(covariates[[p]], levels = levels(data.out[,cn])) # Value of cn for all observation set to the one given in the list
+          else
+            stop(paste(covariates[[p]]), " is not a level of ", names(covariates)[p])
+        } else {
+          data.out[,cn] <- covariates[[p]] # Value of cn for all observation set to the one given in the list
+        }
+      }
+      if(cn%in%colnames(data.out)==FALSE & cn%in%colnames(data.out)==FALSE){ # Was cn not found in either model?
+        unused.covars <- c(unused.covars, cn)
+      }
+    }
 
-    out.w <- match(colnames(x.out), names(covariates), nomatch = 0)
-    w.out <- match(names(covariates)[out.w], rownames(theta4), nomatch = 0)
+    # Model matrices with the new covariate values
+    x.med <- stats::model.matrix(stats::terms(model.med), data=data.med)[,pos.beta2]
+    x.out <- stats::model.matrix(stats::terms(model.out), data=data.out)[,pos.theta4]
 
-    covariates <- unlist(covariates)
+    # If only one covariate:
+    if(is.vector(x.med))
+      x.med <- matrix(x.med, dimnames = list(NULL,rownames(beta2)))
+    if(is.vector(x.out))
+      x.out <- matrix(x.out, dimnames = list(NULL,rownames(theta4)))
 
-    if(sum(w.med) == 0 & sum(w.out) == 0)
-      stop("The names listed in the covariates argument do not match any of the covariates in the mediator or outcome models.")
+    # If none of the covariates were found in the mediator or outcome model:
+    if(!is.null(unused.covars)){
+      message("Note: ", paste(unused.covars, collapse=", "), " not found in med.model or out.model and therefore not conditioned on.")
+      covariates <- covariates[names(covariates)%in%colnames(data.med)|names(covariates)%in%colnames(data.out)]
+    }
 
-    if(sum(w.med) != 0)
-      x.med[, w.med] <- matrix(rep(covariates[med.w], each = nrow(x.med)), ncol = length(covariates[med.w]))
-
-    if(sum(w.out) != 0)
-      x.out[, w.out] <- matrix(rep(covariates[out.w], each = nrow(x.out)), ncol = length(covariates[out.w]))
 
   }
   # -----------------------------------------------------------------------------------------------
@@ -381,7 +475,8 @@ calc.effects <- function(ML.object, type="my", exp.name, med.name, covariates = 
   }
   # -----------------------------------------------------------------------------------------------
 
-  return(list("effects" = effects, "std.errs" = stderr))
+  return(list("effects" = effects, "std.errs" = stderr$ses, "betas" = betas, "thetas" = thetas,
+              "part.deriv" = stderr$part.deriv, "sigma.thetabeta" = sigma.pars, "covariates" = covariates))
 
 }
 
@@ -408,15 +503,14 @@ NULL
 eff.bb <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value,
                    control.value){
   nrho <- length(Rho)
-  NIE <- matrix(nrow = 1, ncol = nrho)
-  colnames(NIE) <- paste(Rho)
-  NDE <- NIE
+  NIE <- NDE <- matrix(nrow = 1, ncol = nrho)
+  colnames(NIE) <- colnames(NDE) <- paste(Rho)
 
   rownames(NIE) <- ifelse(alt.decomposition == TRUE, c("NIE*"), c("NIE"))
   rownames(NDE) <- ifelse(alt.decomposition == TRUE, c("NDE*"), c("NDE"))
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
 
   for(i in 1:nrho){
     b0 <- betas$beta0[i]
@@ -439,7 +533,7 @@ eff.bb <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.valu
     probs.med.de <- stats::pnorm(b0 + b1*t.de + x.med%*%(b2 + b3*t.de))
 
     probs.out.ie <-  stats::pnorm(th0 + th2 + (th1 + th3)*t.ie + x.out%*%(th4 + th5*t.ie +
-                                                                     th6 + th7*t.ie))-stats::pnorm(th0 + th1*t.ie + x.out%*%(th4 + th5*t.ie))
+                             th6 + th7*t.ie))-stats::pnorm(th0 + th1*t.ie + x.out%*%(th4 + th5*t.ie))
 
     probs.out.de1 <- stats::pnorm(th0 + th1*exp.value + x.out%*%(th4 + exp.value*th5)) -
       stats::pnorm(th0 + th1*control.value + x.out%*%(th4 + control.value*th5))
@@ -462,15 +556,14 @@ eff.bb <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.valu
 #'@export
 eff.bc <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value, control.value){
   nrho <- length(Rho)
-  NIE <- matrix(nrow = 1, ncol = nrho)
-  colnames(NIE) <- paste(Rho)
-  NDE <- NIE
+  NIE <- NDE <- matrix(nrow = 1, ncol = nrho)
+  colnames(NIE) <- colnames(NDE) <- paste(Rho)
 
   rownames(NIE) <- ifelse(alt.decomposition == TRUE, c("NIE*"), c("NIE"))
   rownames(NDE) <- ifelse(alt.decomposition == TRUE, c("NDE*"), c("NDE"))
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
 
   diff <- exp.value - control.value
   for(i in 1:nrho){
@@ -506,15 +599,14 @@ eff.bc <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.valu
 eff.cb <- function(Rho, betas, thetas, sigma.eta, x.med, x.out, alt.decomposition,
                    exp.value, control.value){
   nrho <- length(Rho)
-  NIE <- matrix(nrow = 1, ncol = nrho)
-  colnames(NIE) <- paste(Rho)
-  NDE <- NIE
+  NIE <- NDE <- matrix(nrow = 1, ncol = nrho)
+  colnames(NIE) <- colnames(NIE) <- paste(Rho)
 
   rownames(NIE) <- ifelse(alt.decomposition == TRUE, c("NIE*"), c("NIE"))
   rownames(NDE) <- ifelse(alt.decomposition == TRUE, c("NDE*"), c("NDE"))
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
 
   for(i in 1:nrho){
     b0 <- betas$beta0[i]
@@ -562,15 +654,14 @@ eff.cb <- function(Rho, betas, thetas, sigma.eta, x.med, x.out, alt.decompositio
 #'@export
 eff.cc <- function(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value, control.value){
   nrho <- length(Rho)
-  NIE <- matrix(nrow = 1, ncol = nrho)
-  colnames(NIE) <- paste(Rho)
-  NDE <- NIE
+  NIE <- NDE <- matrix(nrow = 1, ncol = nrho)
+  colnames(NIE) <- colnames(NDE) <- paste(Rho)
 
   rownames(NIE) <- ifelse(alt.decomposition == TRUE, c("NIE*"), c("NIE"))
   rownames(NDE) <- ifelse(alt.decomposition == TRUE, c("NDE*"), c("NDE"))
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
 
   diff <- exp.value - control.value
   for(i in 1:nrho){
@@ -623,16 +714,18 @@ NULL
 #'@export
 stderr.bb <- function(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decomposition, exp.value, control.value){
 
-  se.nie <- matrix(nrow = 1, ncol = length(Rho))
-  colnames(se.nie) <- paste(Rho)
-  se.nde <- se.nie
-  se.te <- se.nie
+  se.nie <- se.nde <- se.te <- matrix(nrow = 1, ncol = length(Rho))
+  colnames(se.nie) <- colnames(se.nde) <- colnames(se.te) <- paste(Rho)
   n <- nrow(x.out)
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  part.deriv <- list()
 
-  for(i in 1:length(Rho)){
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
+  nrho <- length(Rho)
+  names.pd <- dimnames(sigma.pars[[1]])[[1]]
+
+  for(i in 1:nrho){
 
     b0 <- betas$beta0[i]
     b1 <- betas$beta1[i]
@@ -655,10 +748,18 @@ stderr.bb <- function(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decompos
     se.nie[, i] <- sqrt(t(part.derivs$Gamma)%*%sigma.pars[[i]]%*%part.derivs$Gamma)
     se.nde[, i] <- sqrt(t(part.derivs$Lambda)%*%sigma.pars[[i]]%*%part.derivs$Lambda)
     se.te[, i] <- sqrt(t(part.derivs$Eta)%*%sigma.pars[[i]]%*%part.derivs$Eta)
+
+    part.derivs <- lapply(1:3, function(X){ names(part.derivs[[X]]) <- names.pd; part.derivs[[X]]})
+    names(part.derivs) <- c("Lambda", "Gamma", "Eta")
+
+    part.deriv[[i]] <- part.derivs
+
   }
 
+  names(part.deriv) <- paste(Rho)
+
   ses <- list("se.nie" = se.nie, "se.nde" = se.nde, "se.te" = se.te)
-  return(ses)
+  return(list("ses" = ses, "part.deriv" = part.deriv))
 
 }
 
@@ -667,17 +768,19 @@ stderr.bb <- function(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decompos
 stderr.bc <- function(Rho, betas, thetas, sigma.pars, x.med, x.out,
                       alt.decomposition, exp.value, control.value){
 
-  se.nie <- matrix(nrow = 1, ncol = length(Rho))
-  colnames(se.nie) <- paste(Rho)
-  se.nde <- se.nie
-  se.te <- se.nie
+  se.nie <- se.nde <- se.te <- matrix(nrow = 1, ncol = length(Rho))
+  colnames(se.nie) <- colnames(se.nde) <- colnames(se.te) <- paste(Rho)
+
+  part.deriv <- list()
 
   diff <- exp.value - control.value
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
+  nrho <- length(Rho)
+  names.pd <- dimnames(sigma.pars[[1]])[[1]]
 
-  for(i in 1:length(Rho)){
+  for(i in 1:nrho){
     b0 <- betas$beta0[i]
     b1 <- betas$beta1[i]
     b2 <- betas$beta2[, i]
@@ -695,10 +798,16 @@ stderr.bc <- function(Rho, betas, thetas, sigma.pars, x.med, x.out,
     se.nie[, i] <- sqrt(t(part.derivs$Gamma)%*%sigma.pars[[i]]%*%part.derivs$Gamma)
     se.nde[, i] <- sqrt(t(part.derivs$Lambda)%*%sigma.pars[[i]]%*%part.derivs$Lambda)
     se.te[, i] <- sqrt(t(part.derivs$Eta)%*%sigma.pars[[i]]%*%part.derivs$Eta)
+
+    part.derivs <- lapply(1:3, function(X){ names(part.derivs[[X]]) <- names.pd; part.derivs[[X]]})
+    names(part.derivs) <- c("Lambda", "Gamma", "Eta")
+
+    part.deriv[[i]] <- part.derivs
   }
 
+  names(part.deriv) <- paste(Rho)
   ses <- list("se.nie" = se.nie, "se.nde" = se.nde, "se.te" = se.te)
-  return(ses)
+  return(list("ses" = ses, "part.deriv" = part.deriv))
 
 }
 
@@ -707,15 +816,17 @@ stderr.bc <- function(Rho, betas, thetas, sigma.pars, x.med, x.out,
 stderr.cb <- function(Rho, betas, thetas, sigma.eta, sigma.pars, x.med, x.out, alt.decomposition,
                       exp.value, control.value){
 
-  se.nie <- matrix(nrow = 1, ncol = length(Rho))
-  colnames(se.nie) <- paste(Rho)
-  se.nde <- se.nie
-  se.te <- se.nie
+  se.nie <- se.nde <- se.te <- matrix(nrow = 1, ncol = length(Rho))
+  colnames(se.nie) <- colnames(se.nde) <- colnames(se.te) <- paste(Rho)
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  part.deriv <- list()
 
-  for(i in 1:length(Rho)){
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
+  nrho <- length(Rho)
+  names.pd <- dimnames(sigma.pars[[1]])[[1]]
+
+  for(i in 1:nrho){
     b0 <- betas$beta0[i]
     b1 <- betas$beta1[i]
     b2 <- betas$beta2[, i]
@@ -738,10 +849,15 @@ stderr.cb <- function(Rho, betas, thetas, sigma.eta, sigma.pars, x.med, x.out, a
     se.nie[, i] <- sqrt(t(part.derivs$Gamma)%*%sigma.pars[[i]]%*%part.derivs$Gamma)
     se.nde[, i] <- sqrt(t(part.derivs$Lambda)%*%sigma.pars[[i]]%*%part.derivs$Lambda)
     se.te[, i] <- sqrt(t(part.derivs$Eta)%*%sigma.pars[[i]]%*%part.derivs$Eta)
+
+    part.derivs <- lapply(1:3, function(X){ names(part.derivs[[X]]) <- names.pd; part.derivs[[X]]})
+    names(part.derivs) <- c("Lambda", "Gamma", "Eta")
+    part.deriv[[i]] <- part.derivs
   }
 
+  names(part.deriv) <- paste(Rho)
   ses <- list("se.nie" = se.nie, "se.nde" = se.nde, "se.te" = se.te)
-  return(ses)
+  return(list("ses" = ses, "part.deriv" = part.deriv))
 
 }
 
@@ -750,15 +866,17 @@ stderr.cb <- function(Rho, betas, thetas, sigma.eta, sigma.pars, x.med, x.out, a
 stderr.cc <- function(Rho, betas, thetas, sigma.pars,
                       x.med, x.out, alt.decomposition, exp.value, control.value){
 
-  se.nie <- matrix(nrow = 1, ncol = length(Rho))
-  colnames(se.nie) <- paste(Rho)
-  se.nde <- se.nie
-  se.te <- se.nie
+  se.nie <- se.nde <- se.te <- matrix(nrow = 1, ncol = length(Rho))
+  colnames(se.nie) <- colnames(se.nde) <- colnames(se.te) <- paste(Rho)
 
-  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value)
-  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value)
+  part.deriv <- list()
 
-  for(i in 1:length(Rho)){
+  t.de <- ifelse(alt.decomposition == TRUE, exp.value, control.value) # The exposure level the mediator is allowed to vary under when calculating the direct effect
+  t.ie <- ifelse(alt.decomposition == TRUE, control.value, exp.value) # The exposure level the exposure is set to when calculating the indirect effect
+  nrho <- length(Rho)
+  names.pd <- dimnames(sigma.pars[[1]])[[1]]
+
+  for(i in 1:nrho){
     b0 <- betas$beta0[i]
     b1 <- betas$beta1[i]
     b2 <- betas$beta2[, i]
@@ -777,10 +895,15 @@ stderr.cc <- function(Rho, betas, thetas, sigma.pars,
     se.nde[, i] <- sqrt(t(part.derivs$Lambda)%*%sigma.pars[[i]]%*%part.derivs$Lambda)
     se.te[, i] <- sqrt(t(part.derivs$Eta)%*%sigma.pars[[i]]%*%part.derivs$Eta)
 
+    part.derivs <- lapply(1:3, function(X){ names(part.derivs[[X]]) <- names.pd; part.derivs[[X]]})
+    names(part.derivs) <- c("Lambda", "Gamma", "Eta")
+    part.deriv[[i]] <- part.derivs
+
   }
 
+  names(part.deriv) <- paste(Rho)
   ses <- list("se.nie" = se.nie, "se.nde" = se.nde, "se.te" = se.te)
-  return(ses)
+  return(list("ses" = ses, "part.deriv" = part.deriv))
 
 }
 
@@ -824,7 +947,8 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
   C.tr <-  beta0 + beta1*exp.value + x.med%*%(beta2 + beta3*exp.value)
   C.cont <-  beta0 + beta1*control.value + x.med%*%(beta2 + beta3*control.value)
 
-  ### NDE ###
+  ### Partial derivatives of the NDE ###
+  # Derivatives wrt mediator model parameters
   D1 <-  stats::dnorm(C.de)*(stats::pnorm(B.tr) - stats::pnorm(B.cont)) - stats::dnorm(C.de)*(stats::pnorm(A.tr) - stats::pnorm(A.cont))
   d1 <-  mean(D1)
 
@@ -835,6 +959,7 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
 
   d4 <-  d3*t.de
 
+  # Derivatives wrt outcome model parameters
   D5 <-  (stats::dnorm(A.tr) - stats::dnorm(A.cont))*(1 - stats::pnorm(C.de))  +  (stats::dnorm(B.tr) - stats::dnorm(B.cont))*stats::pnorm(C.de)
   d5 <-  mean(D5)
 
@@ -858,7 +983,8 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
 
   Lambda <-  c(d5, d6, d7, d8, d9, d10, d11, d12, d1, d2, d3, d4)
 
-  ### NIE ###
+  ### Partial derivatives of the NIE ###
+  # Derivatives wrt mediator model parameters
   G1 <-  (stats::pnorm(B.ie) - stats::pnorm(A.ie))*(stats::dnorm(C.tr) - stats::dnorm(C.cont))
   g1 <-  mean(G1)
 
@@ -869,6 +995,7 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
 
   g4 <-  colMeans(as.vector(G2)*x.med)
 
+  # Derivatives wrt outcome model parameters
   G5 <-  (stats::dnorm(B.ie) - stats::dnorm(A.ie))*(stats::pnorm(C.tr) - stats::pnorm(C.cont))
   g5 <-  mean(G5)
 
@@ -889,7 +1016,7 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
 
   Gamma <-  c(g5, g6, g7, g8, g9, g10, g11, g12, g1, g2, g3, g4)
 
-  ### TE ###
+  ### Partial derivatives of the TE ###
   out.te.tr1 <-  theta0 + theta1*exp.value + x.out%*%(theta4 + exp.value*theta5)
   out.te.tr2 <-  theta0 + theta2 + exp.value*(theta1 + theta3) + x.out%*%(theta4 + exp.value*theta5 + theta6 +
                                                                             exp.value*theta7)
@@ -899,6 +1026,7 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
   med.te.tr <-  beta0 + beta1*exp.value + x.med%*%(beta2 + beta3*exp.value)
   med.te.cont <-  beta0 + beta1*control.value + x.med%*%(beta2 + beta3*control.value)
 
+  # Derivatives wrt mediator model parameters
   H1 <-   - stats::pnorm(out.te.tr1)*stats::dnorm(med.te.tr)  +  stats::pnorm(out.te.tr2)*stats::dnorm(med.te.tr)  +
     stats::pnorm(out.te.cont1)*stats::dnorm(med.te.cont)  -  stats::pnorm(out.te.cont2)*stats::dnorm(med.te.cont)
   h1 <-  mean(H1)
@@ -911,6 +1039,7 @@ partdevs.bb <-  function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, the
 
   h4 <-  colMeans(as.vector(H2)*x.med)
 
+  # Derivatives wrt outcome model parameters
   H5 <-  stats::dnorm(out.te.tr1)*(1 - stats::pnorm(med.te.tr))  +  stats::dnorm(out.te.tr2)*stats::pnorm(med.te.tr)  -
     stats::dnorm(out.te.cont1)*(1 - stats::pnorm(med.te.cont))  -  stats::dnorm(out.te.cont2)*stats::pnorm(med.te.cont)
   h5 <-  mean(H5)
@@ -950,7 +1079,8 @@ partdevs.bc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
   med.ie <- stats::pnorm(beta0 + beta1*exp.value + x.med%*%(beta2  +  exp.value*beta3))-
     stats::pnorm(beta0 + beta1*control.value + x.med%*%(beta2  +  control.value*beta3))
 
-  ###NDE###
+  ### Partial derivatives of the NDE ###
+  # Derivatives wrt mediator model parameters
   D1 <- (theta3*diff + x.out%*%theta7*diff)*stats::dnorm(A)
   d1 <- mean(D1)
 
@@ -961,26 +1091,24 @@ partdevs.bc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   d4 <- d3*t.de
 
-  d5 <- 0
+  # Derivatives wrt outcome model parameters
+  d5 <- d7 <- 0
 
   d6 <- diff
-
-  d7 <- 0
 
   D8 <- diff*stats::pnorm(A)
   d8 <- mean(D8)
 
-  d9 <- rep(0, ncol(x.out))
+  d9 <- d11 <- rep(0, ncol(x.out))
 
   d10 <- colMeans(diff*x.out)
-
-  d11 <- d9
 
   d12 <- colMeans(as.vector(D8)*x.out)
 
   Lambda <- c(d5, d6, d7, d8, d9, d10, d11, d12, d1, d2, d3, d4)
 
-  ###NIE###
+  ### Partial derivatives of the NIE ###
+  # Derivatives wrt mediator model parameters
   G1 <- out.ie*(stats::dnorm(beta0 + beta1*exp.value + x.med%*%(beta2  +  exp.value*beta3))-
                   stats::dnorm(beta0 + beta1*control.value + x.med%*%(beta2  +  control.value*beta3)))
   g1 <- mean(G1)
@@ -993,18 +1121,15 @@ partdevs.bc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   g4 <- colMeans(as.vector(G2)*x.med)
 
-  g5 <- 0
-
-  g6 <- 0
+  # Derivatives wrt outcome model parameters
+  g5 <- g6 <- 0
 
   G7 <- med.ie
   g7 <- mean(G7)
 
   g8 <- g7*t.ie
 
-  g9 <- rep(0, ncol(x.out))
-
-  g10 <- g9
+  g9 <- g10 <- rep(0, ncol(x.out))
 
   g11 <- colMeans(as.vector(G7)*x.out)
 
@@ -1012,12 +1137,13 @@ partdevs.bc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   Gamma <- c(g5, g6, g7, g8, g9, g10, g11, g12, g1, g2, g3, g4)
 
-  #TE
+  ### Partial derivatives of the TE ###
   out.te.exp <- theta2  +  theta3*exp.value + x.out%*%(theta6  +  exp.value*theta7)
   out.te.contr <- theta2  +  theta3*control.value + x.out%*%(theta6  +  control.value*theta7)
   med.te.exp <- beta0 + beta1*exp.value + x.med%*%(beta2  +  exp.value*beta3)
   med.te.contr <- beta0 + beta1*control.value + x.med%*%(beta2  +  control.value*beta3)
 
+  # Derivatives wrt mediator model parameters
   H1 <- out.te.exp*stats::dnorm(med.te.exp) - out.te.contr*stats::dnorm(med.te.contr)
   h1 <- mean(H1)
 
@@ -1028,6 +1154,7 @@ partdevs.bc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   h4 <- colMeans(as.vector(H2)*x.med)
 
+  # Derivatives wrt outcome model parameters
   h5 <- 0
 
   h6 <- diff
@@ -1072,7 +1199,8 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
   C.cont <- theta0 + theta1*control.value + x.out%*%(theta4 + theta5*control.value)
   C.ie <- theta0 + theta1*t.ie + x.out%*%(theta4 + theta5*t.ie)
 
-  ###NDE###
+  ### Partial derivatives of the NDE ###
+  # Derivatives wrt mediator model parameters
   D1 <- out.de.tr/denom.de.tr*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.de +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr )  -
     out.de.cont/denom.de.cont*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.de +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   d1 <- mean(D1)
@@ -1084,10 +1212,12 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
 
   d4 <- d3*t.de
 
+  # Derivative wrt to the error term standard deviation of the mediator model
   D5 <- -(C.tr + out.de.tr*med.de)*sigma.eta*out.de.tr^2/(denom.de.tr^3)*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.de +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr ) +
     (C.cont + out.de.cont*med.de)*sigma.eta*out.de.cont^2/(denom.de.cont^3)*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.de +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   d5 <- mean(D5)
 
+  # Derivatives wrt outcome model parameters
   D6 <- 1/denom.de.tr*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.de +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr )  -
     1/denom.de.cont*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.de +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   d6 <- mean(D6)
@@ -1114,7 +1244,8 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
 
   Lambda <- c(d6, d7, d8, d9, d10, d11, d12, d13, d1, d2, d3, d4, d5)
 
-  ###NIE###
+  ### Partial derivatives of the NIE ###
+  # Derivatives wrt mediator model parameters
   G1 <- out.ie/denom.ie*(stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.tr +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie )  -
                            stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.cont +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie ))
   g1 <- mean(G1)
@@ -1127,10 +1258,12 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
 
   g4 <- colMeans(as.vector(G2)*x.med)
 
+  # Derivative wrt to the error term standard deviation of the mediator model
   G5 <- sigma.eta*out.ie^2/(denom.ie^3)*(-stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.tr +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie )*(C.ie + out.ie*med.ie.tr) +
                                            stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.cont +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie ) *(C.ie + out.ie*med.ie.cont) )
   g5 <- mean(G5)
 
+  # Derivatives wrt outcome model parameters
   G6 <- 1/denom.ie*(stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.tr +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie )  -
                       stats::dnorm((theta0 + theta1*t.ie + out.ie*med.ie.cont +  x.out%*%(theta4 + theta5*t.ie) )/denom.ie ))
   g6 <- mean(G6)
@@ -1153,7 +1286,8 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
 
   Gamma <- c(g6, g7, g8, g9, g10, g11, g12, g13, g1, g2, g3, g4, g5)
 
-  ###TE###
+  ### Partial derivatives of the TE ###
+  # Derivatives wrt mediator model parameters
   H1 <- out.de.tr/denom.de.tr*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.ie.tr +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr )  -
     out.de.cont/denom.de.cont*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.ie.cont +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   h1 <- mean(H1)
@@ -1166,10 +1300,12 @@ partdevs.cb <- function(beta0, beta1, beta2, beta3, theta0, theta1, theta2, thet
 
   h4 <- colMeans(as.vector(H2)*x.med)
 
+  # Derivative wrt to the error term standard deviation of the mediator model
   H5 <- -(C.tr + out.de.tr*med.ie.tr)*sigma.eta*out.de.tr^2/(denom.de.tr^3)*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.ie.tr +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr ) +
     (C.cont + out.de.cont*med.ie.cont)*sigma.eta*out.de.cont^2/(denom.de.cont^3)*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.ie.cont +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   h5 <- mean(H5)
 
+  # Derivatives wrt outcome model parameters
   H6 <- 1/denom.de.tr*stats::dnorm((theta0 + theta1*exp.value + out.de.tr*med.ie.tr +  x.out%*%(theta4 + theta5*exp.value) )/denom.de.tr )  -
     1/denom.de.cont*stats::dnorm((theta0 + theta1*control.value + out.de.cont*med.ie.cont +  x.out%*%(theta4 + theta5*control.value) )/denom.de.cont )
   h6 <- mean(H6)
@@ -1208,7 +1344,8 @@ partdevs.cc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
   A <- beta0 + beta1*t.de + x.med%*%(beta2 + t.de*beta3)
   B <- theta2 + theta3*t.ie + x.out%*%(theta6 + t.ie*theta7)
 
-  ###NDE###
+  ### Partial derivatives of the NDE ###
+  # Derivatives wrt mediator model parameters
   D1 <- theta3*diff + x.out%*%theta7*diff
   d1 <- mean(D1)
 
@@ -1219,27 +1356,26 @@ partdevs.cc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   d4 <- d3*t.de
 
-  d5 <- 0
+  # Derivatives wrt outcome model parameters
+  d5 <- d7 <- 0
 
   d6 <- diff
-
-  d7 <- 0
 
   D8 <- diff*A
   d8 <- mean(D8)
 
-  d9 <- rep(0, ncol(x.out))
+  d9 <- d11 <- rep(0, ncol(x.out))
 
   d10 <- colMeans(diff*x.out)
-
-  d11 <- d9
 
   d12 <- colMeans(as.vector(D8)*x.out)
 
   Lambda <- c(d5, d6, d7, d8, d9, d10, d11, d12, d1, d2, d3, d4)
 
-  ###NIE###
-  g1 <- 0
+  ### Partial derivatives of the NIE ###
+  # g1-g4: derivatives wrt mediator model parameters
+  # g5-g7: derivatives wrt outcome model parameters
+  g1 <- g5 <- g6 <- 0
 
   G2 <- diff*B
   g2 <- mean(G2)
@@ -1248,18 +1384,12 @@ partdevs.cc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   g4 <- colMeans(as.vector(G2)*x.med)
 
-  g5 <- 0
-
-  g6 <- 0
-
   G7 <- diff*(beta1 + x.med%*%beta3)
   g7 <- mean(G7)
 
   g8 <- g7*t.ie
 
-  g9 <- rep(0, ncol(x.out))
-
-  g10 <- g9
+  g9 <- g10 <- rep(0, ncol(x.out))
 
   g11 <- colMeans(as.vector(G7)*x.out)
 
@@ -1267,11 +1397,12 @@ partdevs.cc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   Gamma <- c(g5, g6, g7, g8, g9, g10, g11, g12, g1, g2, g3, g4)
 
-  ###TE###
+  ### Partial derivatives of the TE ###
   med.te <- (beta1 + x.med%*%beta3)*diff
   med.te2 <- exp.value*(beta0 + beta1*exp.value + x.med%*%(beta2 + exp.value*beta3))-
     control.value*(beta0 + beta1*control.value + x.med%*%(beta2 + control.value*beta3))
 
+  # Derivatives wrt mediator model parameters
   H1 <- theta3*diff + x.out%*%theta7*diff
   h1 <- mean(H1)
 
@@ -1283,6 +1414,7 @@ partdevs.cc <- function(beta0, beta1, beta2, beta3, theta2, theta3, theta6, thet
 
   h4 <- colMeans(as.vector(H2)*x.med)
 
+  # Derivatives wrt outcome model parameters
   h5 <- 0
 
   h6 <- diff

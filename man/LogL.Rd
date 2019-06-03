@@ -8,17 +8,17 @@
 \alias{LogL.cc}
 \title{Implementation of loglikelihood functions for ML estimation of regression parameters}
 \usage{
-LogL.bb(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+LogL.bb(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-LogL.bc(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+LogL.bc(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-LogL.cb(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+LogL.cb(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-LogL.cc(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+LogL.cc(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 }
 \arguments{
 \item{par}{Vector of parameter values.}

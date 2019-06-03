@@ -2,13 +2,13 @@
 % Please edit documentation in R/sensmediation.R
 \name{more.effects}
 \alias{more.effects}
-\title{Estimate additional natural direct and indirect effects based on an object from \code{sensmediation}}
+\title{Estimate additional natural direct and indirect effects based on an \code{"effectsMed"} object}
 \usage{
 more.effects(sensmed.object, conf.level = 0.95, covariates = NULL,
-  alt.decomposition = FALSE, exp.value = 1, control.value = 0)
+  alt.decomposition = FALSE, exp.value = NULL, control.value = NULL)
 }
 \arguments{
-\item{sensmed.object}{Object from \code{\link{sensmediation}} for which additional effects are to be calculated.}
+\item{sensmed.object}{an object of class "effectsMed" for which additional effects are to be calculated.}
 
 \item{conf.level}{the confidence level to be used for confidence intervals and uncertainty intervals.}
 
@@ -16,49 +16,43 @@ more.effects(sensmed.object, conf.level = 0.95, covariates = NULL,
 
 \item{alt.decomposition}{logical indicating whether alternative definitions of the direct and indirect effects should be used (see \code{\link{sensmediation}}).}
 
-\item{exp.value}{value of the exposure variable used as the exposure condition, default is 1.}
+\item{exp.value}{value of the exposure variable used as the exposure condition, default is to take the value stored in \code{sensmed.object}.}
 
-\item{control.value}{value of the exposure variable used as the control (unexposed) condition, default is 0.}
+\item{control.value}{value of the exposure variable used as the control (unexposed) condition, default is to take the value stored in \code{sensmed.object}.}
 }
 \value{
-\code{more.effects} returns an object of class \code{"effectsMed"}.
-
-The function \code{summary} (\code{\link{summary.effectsMed}}) gives a summary of the results in the form of a table with the estimated
-effects and results of the sensitivity analysis. The function \code{plot} (\code{\link{plot.effectsMed}}) plots the estimated natural
-indirect or direct effects with confidence intervals over the range of the sensitivity parameter.
-
-\item{call}{The matched call}
-\item{Rho}{The sensitivity parameter vector.}
-\item{type}{character, the type of confounding the sensitivity analysis is performed for.}
-\item{coefs.sensmed}{a list with the output from \code{\link{coefs.sensmed}}}
-\item{NIE}{matrix with the estimated NIEs (or NIE*s if \code{alt.decomposition=TRUE}) over the range of the sensitivity parameter \code{Rho}.}
-\item{NDE}{matrix with the estimated NDEs (or NDE*s if \code{alt.decomposition=TRUE}) over the range of the sensitivity parameter \code{Rho}.}
-\item{std.errs}{list with the standard errors of the NIE (NIE*), NDE (NDE*) and total effect over the range of the sensitivity parameter \code{Rho}.}
-\item{CI}{a list with the confidence intervals of the NIE (NIE*), NDE (NDE*) and total effect over the range of the sensitivity parameter \code{Rho}.}
-\item{UI}{matrix with the uncertainty intervals for the NIE (NIE*) and NDE (NDE*) over the range of the sensitivity parameter \code{Rho}.}
-\item{conf.level}{numeric, the confidence level used for confidence intervals and uncertainty intervals.}
-\item{covariates}{list of the covariate values that the effects are conditioned on.}
-\item{exp.name}{character vector containing the name of the exposure variable.}
-\item{med.name}{character vector containing the name of the mediator variable.}
-\item{alt.decomposition}{logical, indicating whether the alternative definitions of the direct and indirect effects have been used}
+\code{more.effects} returns an object of class \code{"effectsMed"}, see the documentation for \code{\link{sensmediation}}
+for information.
 }
 \description{
-Takes an object from \code{\link{sensmediation}} and estimates additional natural direct and indirect effects, with a sensitivity analysis using
+Takes an \code{"effectsMed"} object and estimates additional natural direct and indirect effects, with a sensitivity analysis using
 the same sensitivity parameter as in the original analysis, without having to redo the optimization to find the estimated regression coefficients.
-The effects to be estimated are regulated through the arguments \code{covariates} and \code{alt.decomposition} as described in the documentation
-for \code{\link{sensmediation}}. The confidence level used is regulated through the argument \code{conf.level}.
+The effects to be estimated are regulated through the arguments \code{covariates}, \code{alt.decomposition}, \code{exp.value} and \code{control.value}
+as described in the documentation for \code{\link{sensmediation}}. The confidence level used is regulated through the argument \code{conf.level}.
 }
 \examples{
 \dontrun{
-#First we estimate marginal NIE, NDE with sensitivity analyses to mediator-outcome confounding:
-effects.my <- sensmediation(med.model = m.model, out.model = y.model, exp.name = "z",
-                     med.name = "m", Rho = seq(0, 0.5, 0.1))
 
-#Then we want to do the same for conditional NIE, NDE without reestimating the regression
-#coefficients:
-effects.my.cond <- more.effects(sensmed.object = effects.my, covariates = list(x = 1))
-summary(effects.my.cond)
-plot(effects.my.cond)
+# Example with data from Riksstroke (the Swedish stroke register)
+
+data(RSdata)
+
+# Probit mediator and outcome models:
+med.model <- glm(lowered.consc ~ AF + age.cat + sex, data = RSdata,
+family = binomial(link = 'probit'))
+out.model <- glm(cf.3mo ~ AF + lowered.consc + age.cat + sex, data = RSdata,
+family = binomial(link = 'probit'))
+
+# First we estimate marginal NIE, NDE with sensitivity analyses to mediator-outcome
+# confounding:
+sensmed <- sensmediation(med.model, out.model, exp.name = "AF1", med.name = "lowered.consc",
+Rho = seq(0, 0.5, 0.1))
+
+# Then we also estimate NIE, NDE conditional on male sex without reestimating the regression
+# coefficients:
+sensmed.cond <- more.effects(sensmed.object = sensmed, covariates = list(sex = 1))
+summary(sensmed.cond)
+plot(sensmed.cond)
 }
 
 }

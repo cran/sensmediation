@@ -4,9 +4,9 @@
 \alias{calc.effects}
 \title{Function for estimation of natural direct and indirect effects and sensitivity analysis for unobserved mediator-outcome confounding}
 \usage{
-calc.effects(ML.object, type = "my", exp.name, med.name, covariates = NULL,
-  alt.decomposition = FALSE, exp.value = 1, control.value = 0,
-  med.model = NULL, out.model = NULL)
+calc.effects(ML.object, type = "my", exp.name, med.name,
+  covariates = NULL, alt.decomposition = FALSE, exp.value = 1,
+  control.value = 0, med.model = NULL, out.model = NULL)
 }
 \arguments{
 \item{ML.object}{object from \code{\link{coefs.sensmed}}}
@@ -34,6 +34,29 @@ confounding,  \code{type = "zm"} to exposure-mediator confounding and \code{type
 A list with elements:
 \item{effects}{A list with elements \code{NIE} and \code{NDE},  row matrices with the estimated NIE and NDE (or NIE* and NDE* if \code{alt.decomposition = TRUE}) for each value of the sensitivity parameter \code{Rho}.}
 \item{std.errs}{A list with elements \code{se.nie} and \code{se.nde},  row matrices with the estimated standard errors for the natural direct and indirect effects for the different values of the sensitivity parameter \code{Rho}.}
+\item{betas}{list of the estimated mediator model parameters over \code{Rho}, with
+\itemize{
+\item \code{beta0} Intercept
+\item \code{beta1} Exposure
+\item \code{beta2} Covariates
+\item \code{beta3} Exposure-covariate interactions
+}
+Components that are not included in the input mediator model are set to 0.}
+\item{thetas}{list of the estimated outcome model parameters over \code{Rho}, with
+\itemize{
+\item \code{theta0} Intercept
+\item \code{theta1} Exposure
+\item \code{theta2} Mediator
+\item \code{theta3} Exposure-mediator interaction
+\item \code{theta4} Covariates
+\item \code{theta5} Exposure-covariate interactions
+\item \code{theta6} Mediator-covariate interactions
+\item \code{theta7} Exposure-mediator-covariate interactions
+}
+Components that are not included in the input outcome model are set to 0.}
+\item{part.deriv}{List with the partial derivatives of the NDE (Lambda), NIE (Gamma) and TE (Eta) wrt the mediator and outcome model parameters for each value of \code{Rho}}
+\item{sigma.thetabeta}{a list with the joint covariance matrix of the outcome and mediator model parameters for each value of \code{Rho}. Note that the covariance matrix is constructed for all estimated parameters listed in \code{betas} and \code{thetas} but that components not included in the input mediator and outcome models are set to 0.}
+\item{covariates}{list of the covariate values that the effects are conditioned on.}
 }
 \description{
 Function to estimate natural direct and indirect effect estimates and standard errors (using the delta method) based on parametric regression models and perform sensitivity analysis for unobserved confounding.

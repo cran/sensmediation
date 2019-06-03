@@ -7,8 +7,8 @@
 sensmediation(med.model, out.model, exp.model = NULL, exp.name = NULL,
   med.name = NULL, type = "my", Rho = 0, progress = TRUE,
   conf.level = 0.95, covariates = NULL, alt.decomposition = FALSE,
-  control.value = 0, exp.value = 1, covariance = NULL, med.full = NULL,
-  out.full = NULL, all.interactions = NULL, ...)
+  control.value = 0, exp.value = 1, covariance = NULL,
+  med.full = NULL, out.full = NULL, all.interactions = NULL, ...)
 }
 \arguments{
 \item{med.model}{Fitted \code{\link{glm}} model object representing the mediator model at the basis of the estimation (see Details for more information).}
@@ -17,9 +17,9 @@ sensmediation(med.model, out.model, exp.model = NULL, exp.name = NULL,
 
 \item{exp.model}{Fitted \code{\link{glm}} model object representing the exposure model. Should be provided if \code{type="zm"} or \code{type="zy"}.}
 
-\item{exp.name}{A character string indicating the name of the exposure variable used in the models.}
+\item{exp.name}{A character string indicating the name of the exposure variable used in the models. Needs to match the name of the exposure found in the output from the fitted glm-models (this is especially important to check for exposures of class \code{factor}).}
 
-\item{med.name}{A character string indicating the name of the mediator used in the models.}
+\item{med.name}{A character string indicating the name of the mediator used in the models. Needs to match the name of the mediator found in the output from the outcome glm-model (this is especially important to check for mediators of class \code{factor}).}
 
 \item{type}{the type of confounding for which the sensitivity analysis is to be performed. \code{type="my"}, the default, corresponds to unobserved mediator-outcome confounding, \code{type="zm"} to exposure-mediator confounding and \code{type="zy"} to exposure-outcome confounding.}
 
@@ -61,9 +61,33 @@ indirect or direct effects with confidence intervals over the range of the sensi
 \item{covariates}{list of the covariate values that the effects are conditioned on.}
 \item{exp.name}{character vector containing the name of the exposure variable.}
 \item{med.name}{character vector containing the name of the mediator variable.}
+\item{exp.value}{value of the exposure variable used as the exposure condition.}
+\item{control.value}{value of the exposure variable used as the control (unexposed) condition.}
 \item{alt.decomposition}{logical, indicating whether the alternative definitions of the direct and indirect effects have been used}
-\item{med.model}{if \code{type="zy"}, the mediator model input.}
-\item{out.model}{if \code{type="zm"}, the outcome model input.}
+\item{med.model}{the mediator model input.}
+\item{out.model}{the outcome model input.}
+\item{betas}{list of the estimated mediator model parameters over \code{Rho}, with
+\itemize{
+\item \code{beta0} Intercept
+\item \code{beta1} Exposure
+\item \code{beta2} Covariates
+\item \code{beta3} Exposure-covariate interactions
+}
+Components that are not included in the input mediator model are set to 0.}
+\item{thetas}{list of the estimated outcome model parameters over \code{Rho}, with
+\itemize{
+\item \code{theta0} Intercept
+\item \code{theta1} Exposure
+\item \code{theta2} Mediator
+\item \code{theta3} Exposure-mediator interaction
+\item \code{theta4} Covariates
+\item \code{theta5} Exposure-covariate interactions
+\item \code{theta6} Mediator-covariate interactions
+\item \code{theta7} Exposure-mediator-covariate interactions
+}
+Components that are not included in the input outcome model are set to 0.}
+\item{part.deriv}{List with the partial derivatives of the NDE (Lambda), NIE (Gamma) and TE (Eta) wrt the mediator and outcome model parameters for each value of \code{Rho}. See \code{\link{partdevs}}.}
+\item{sigma.thetabeta}{a list with the joint covariance matrix of the outcome and mediator model parameters for each value of \code{Rho}. Note that the covariance matrix is constructed for all estimated parameters listed in \code{betas} and \code{thetas} but that components not included in the input mediator and outcome models are set to 0.}
 }
 \description{
 Function to estimate the natural direct and indirect effects based on parametric regression models. Standard errors for the effects are calculated using the delta method.
@@ -82,9 +106,8 @@ All models may also contain interactions between covariates. Note, however that 
 also including the main effects of the interacting variables. That is, interactions should be specified either as \code{X1*X2} or
 \code{X1 + X2 + X1:X2}, not as \code{X1:X2} alone.
 
-To obtain results conditional on specific covariate values, these values should be provided through the \code{covariates} argument as a named list. The names of the list
-item(s) should match names from \code{names(med.model$coefficients)} and/or \code{names(out.model$coefficients)} (see Examples). The effects will be averaged
-over covariates not specified in the list.
+To obtain results conditional on specific covariate values, these values should be provided through the \code{covariates} argument as a named list (see Examples).
+The effects will be averaged over covariates not specified in the list.
 
 The total effect can be decomposed into a direct and indirect effect in different ways. Let z be the exposure value and z* the control (unexposed) value.
 The default is to give the decomposition into the "pure direct effect" \code{E(Y(z,M(z*)))-E(Y(z*,M(z*)))} (here denoted NDE) and the "total indirect effect"
@@ -92,87 +115,84 @@ The default is to give the decomposition into the "pure direct effect" \code{E(Y
 instead gives the decomposition into the "total direct effect" \code{E(Y(z,M(z)))-E(Y(z*,M(z)))} (here denoted NDE*) and "pure indirect effect"
 \code{E(Y(z*,M(z)))-E(Y(z*,M(z*)))} (denoted NIE*).
 
-Standard errors for the effects are calculated using the delta method.
+Standard errors for the effects are calculated using the delta method. Confidence intervals (CI) for (and p-values for tests of) the natural direct and indirect effects for each value of the
+sensitivity parameter are constructed based on a normal approximation. Uncertainty intervals (UI) are constructed as the union of all CIs over the sensitivity parameter
+vector.
 }
 \examples{
 
-#Examples with simulated data
+# Example with data from Riksstroke (the Swedish stroke register)
 
-#######################################
-# Binary mediator, continuous outcome #
-#######################################
+data(RSdata)
 
-###Binary exposure:
+# Probit mediator and outcome models:
+m.model <- glm(lowered.consc ~ AF + age.cat + sex, data = RSdata,
+   family = binomial(link = 'probit'))
+o.model <- glm(cf.3mo ~ AF + lowered.consc + age.cat + sex, data = RSdata,
+   family = binomial(link = 'probit'))
 
-##Simulated data:
+# Estimation of NIE, NDE and sensitivity analyses to mediator-outcome confounding:
+# (note that the name of the exposure is "AF1" to match the name in coef(out.model))
+sensmed <- sensmediation(m.model, o.model, exp.name = "AF1", med.name = "lowered.consc",
+   Rho = c(0, 0.1))
+summary(sensmed)
+plot(sensmed)
+plot(sensmed, effect = "direct")
+
+\dontrun{
+# Conditional effects and sensitivity analysis to mediator-outcome confounding using
+# more.effects():
+sensmed.cond <- more.effects(sensmed.object = sensmed,
+   covariates = list(sex = 1, age.cat = "70-79"))
+summary(sensmed.cond)
+}
+
+\dontrun{
+## Sensitivity analysis to exposure-mediator confounding:
+  e.model <- glm(AF ~ age.cat + sex, data = RSdata,
+     family = binomial(link = 'probit'))
+
+  sensmed.zm <- sensmediation(med.model = m.model, out.model = o.model,
+     exp.model = e.model, type = "zm", Rho = seq(0, 0.5, 0.1), exp.name = "AF1",
+     med.name = "lowered.consc")
+
+  summary(sensmed.zm)
+}
+
+\dontrun{
+# Additional effects using more.effects:
+# Results with conf.level = 0.99:
+sensmed.zm.99 <- more.effects(sensmed.object = sensmed.zm, conf.level = 0.99)
+summary(sensmed.zm.99)
+}
+
+\dontrun{
+# Examples with simulated data, continuous exposure:
+
 require(mvtnorm)
-require(maxLik)
 
 n <- 1000
 set.seed(102677)
 
 x <- rnorm(n)
-
-z.star <- -0.5 + 0.1*x + rnorm(n)
-z <- ifelse(z.star > 0, 1, 0)
-
+z <- -0.5 + 0.1*x + rnorm(n)
 R <- 0.5
 Sigma <- cbind(c(1,R), c(R,1))
 epsilon <- rmvnorm(n, sigma = Sigma)
-
-m.star <- -1.2 + 0.8*z + 0.13*x + epsilon[,1]
-m <- ifelse(m.star > 0, 1, 0)
-
+m <- -1.2 + 0.8*z + 0.13*x + epsilon[,1]
 y <- -1 + 0.05*z + 3*m + 0.5*x + epsilon[,2]
 
-#Models:
-z.model <- glm(z ~ x, family = binomial(link = 'probit'))
-m.model <- glm(m ~ z + x, family = binomial(link = 'probit'))
+# Models:
+z.model <- glm(z ~ x)
+m.model2 <- glm(m ~ z + x)
 y.model <- glm(y ~ z + m + x)
 
-
-##Estimation of NIE, NDE and sensitivity analyses to mediator-outcome confounding:
-effects.my <- sensmediation(med.model = m.model, out.model = y.model, exp.name = "z",
-              med.name = "m", Rho = seq(0, 0.5, 0.1))
-summary(effects.my)
-summary(effects.my, non.sign = TRUE)
-plot(effects.my)
-plot(effects.my, effect="direct")
-
-##Estimation of NIE, NDE and sensitivity analyses to exposure-mediator confounding:
-\dontrun{
-  effects.zm <- sensmediation(med.model = m.model, out.model = y.model, exp.model = z.model,
-            type = "zm", Rho = seq(0, 0.5, 0.1), exp.name = "z", med.name = "m")
-  summary(effects.zm)
+## Estimation of NIE, NDE. Note that the exposure condition is 2
+## so effects are calculated for a 2 unit increase of the exposure:
+eff.contz <- sensmediation(med.model = m.model2, out.model = y.model,
+           exp.name = "z", med.name = "m", control.value = 0, exp.value = 2)
+summary(eff.contz)
 }
-
-##Additional effects using more.effects:
-#Results with conf.level = 0.99:
-effects.my.99 <- more.effects(sensmed.object = effects.my, conf.level = 0.99)
-summary(effects.my.99)
-#Conditional effects and sensitivity analysis to mediator-outcome confounding:
-eff.my.cond <- more.effects(sensmed.object = effects.my, covariates = list(x = 1))
-summary(eff.my.cond)
-
-
-###Continuous exposure:
-#Models:
-z.model.cont <- glm(z.star ~ x)
-m.model.contz <- glm(m ~ z.star + x, family=binomial(link='probit'))
-y.model.contz <- glm(y ~ z.star + m + x)
-
-##Estimation of NIE, NDE and sensitivity analyses to mediator-outcome confounding:
-eff.my.contz <- sensmediation(med.model = m.model.contz, out.model = y.model.contz,
-           Rho = seq(0, 0.5, 0.1), exp.name = "z.star", med.name = "m",
-           control.value = 0, exp.value = 2)
-summary(eff.my.contz)
-
-##Estimation of NIE, NDE and sensitivity analyses to exposure-mediator confounding:
-eff.zm.contz <- sensmediation(med.model = m.model.contz, out.model = y.model.contz,
-                 exp.model = z.model.cont, type = "zm", Rho = seq(0, 0.5, 0.1),
-                 exp.name = "z.star", med.name = "m", control.value = 0, exp.value = 2)
-summary(eff.zm.contz)
-
 
 }
 \references{

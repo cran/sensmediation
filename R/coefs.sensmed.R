@@ -32,38 +32,23 @@
 #' @seealso \code{\link{sensmediation}}
 #'@examples
 #'
-#'require(mvtnorm)
+#'\dontrun{
+#' # Example with data from Riksstroke (the Swedish stroke register)
 #'
-#' n <- 1000
-#' set.seed(102677)
-#' x <- rnorm(n)
-#' z.star <- -0.5 + 0.1*x + rnorm(n)
-#' z <- ifelse(z.star > 0, 1, 0)
+#' data(RSdata)
 #'
-#' #Generating correlated error terms for the mediator and outcome models:
-#' R <- 0.5
-#' Sigma <- cbind(c(1,R), c(R,1))
-#' epsilon <- rmvnorm(n, sigma = Sigma)
+#' # Probit mediator and outcome models:
+#' m.model <- glm(lowered.consc ~ AF + age.cat + sex, data = RSdata,
+#'    family = binomial(link = 'probit'))
+#' o.model <- glm(cf.3mo ~ AF + lowered.consc + age.cat + sex, data = RSdata,
+#'    family = binomial(link = 'probit'))
 #'
-#' m.star <- -1.2 + 0.14*z + 0.13*x + epsilon[,1]
-#' m <- ifelse(m.star > 0,1,0)
-#' y <- -1 + 0.05*z + 1.5*m + 0.5*x + epsilon[,2]
-#'
-#' #Models:
-#' z.model <- glm(z ~ x, family=binomial(link='probit'))
-#' m.model <- glm(m ~ z + x, family=binomial(link='probit'))
-#' y.model <- glm(y ~ z + m + x)
-#'
-#' #Estimation of regression coefficients under different values of Rho
-#' #Rho = correlation between error terms in mediator and outcome model:
-#' coefs.MY <- coefs.sensmed(model.expl = m.model, model.resp = y.model, Rho = seq(0, 0.5, 0.1))
-#' #Outcome model regression coefficients:
+#' # Estimation of regression coefficients under different values of Rho
+#' # Rho = correlation between error terms in mediator and outcome model:
+#' coefs.MY <- coefs.sensmed(model.expl = m.model, model.resp = o.model, Rho = seq(0, 0.5, 0.1))
+#' # Outcome model regression coefficients:
 #' coefs.MY$coef
-#'
-#' #Rho = correlation between error terms in exposure and outcome model:
-#' coefs.ZY <- coefs.sensmed(model.expl = z.model, model.resp = y.model, Rho = seq(0, 0.5, 0.1))
-#' #Outcome model regression coefficients:
-#' coefs.ZY$coef
+#'}
 #'
 coefs.sensmed <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 
@@ -142,7 +127,6 @@ NULL
 #' @export
 ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 
-
   X.expl <- as.matrix(stats::model.matrix(model.expl))
   X.resp <- as.matrix(stats::model.matrix(model.resp))
 
@@ -154,31 +138,25 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   p2 <- length(coef(model.expl))
   d <- p1 + p2
 
-  coef <- matrix(nrow=(p1 + p2), ncol = nrho)
-
-
-  rownames(coef) <- c(names(model.resp$coef), names(model.expl$coef))
-
-  value <- vector(length = nrho)
-  names(value) <- paste(Rho)
+  coefs <- matrix(nrow=(p1 + p2), ncol = nrho) # vector with all model parameters
+  rownames(coefs) <- c(names(model.resp$coef), names(model.expl$coef))
 
   dots <- list(...)
 
-  if(is.null(dots$method))
+  if(is.null(dots$method)) # which optimization method should be used?
     method <- "NR"
   else
     method <- dots$method
-  if(is.null(dots$control))
+
+  if(is.null(dots$control)) # any control arguments given?
     control <- NULL
   else
     control <- dots$control
 
   i0 <- which(Rho == 0)
-  coef[, i0] <- c(coef(model.resp), coef(model.expl))
+  coefs[, i0] <- c(coef(model.resp), coef(model.expl)) # storing the parameters for Rho = 0
 
-  glmVcov <- stats::vcov(model.resp)
-  expl.glmVcov <- stats::vcov(model.expl)
-
+  # Convergence information, matrix and stored values for Rho = 0
   max.info <- list(converged = array(dim=nrho), message = array(dim=nrho), method = array(dim=nrho),
                    iterations = array(dim=nrho))
   max.info$converged[i0] <- model.expl$converged == TRUE & model.resp$converged == TRUE
@@ -186,17 +164,23 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   max.info$method[i0] <- "glm"
   max.info$iterations[i0] <- NA
 
-
-  value[i0] <- LogL.bb(coef[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
+  value <- vector(length = nrho) # vector to store values of the log-likelihood
+  names(value) <- paste(Rho)
+  value[i0] <- LogL.bb(coefs[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
                        outc.expl = outc.expl)
 
-  sigma <- list()
+
+
+  sigma <- list() # List to store the covariance matrices for the model parameters
   sigma[[i0]] <- matrix(0, nrow = d, ncol = d)
+  glmVcov <- stats::vcov(model.resp)
+  expl.glmVcov <- stats::vcov(model.expl)
   sigma[[i0]][1:p1, 1:p1] <- glmVcov
   sigma[[i0]][(p1 + 1):d, (p1 + 1):d] <- expl.glmVcov
   dimnames.sigma <- c(dimnames(glmVcov)[[1]], dimnames(expl.glmVcov)[[1]])
   dimnames(sigma[[i0]]) <- list(dimnames.sigma, dimnames.sigma)
 
+  # Optimization for Rho < 0:
   if(sum(Rho < 0) > 0){
     for(i in 1:(i0 - 1)){
 
@@ -205,6 +189,7 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.bb(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -214,16 +199,20 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.bb(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
-      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coef[, i0 - i + 1], method = method, control = control)
+      # Maximization
+      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i0 - i + 1], method = method, control = control)
 
+      # Storing information from maximization
       max.info$converged[i0 - i] <- ML$code <= 2
       max.info$message[i0 - i] <- ML$message
       max.info$method[i0 - i] <- ML$type
       max.info$iterations[i0 - i] <- ML$iterations
 
-      coef[,i0 - i] <- ML$estimate
+      # Storing parameters and log-likelihood value from maximization
+      coefs[,i0 - i] <- ML$estimate
       value[i0 - i] <- ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i0 - i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -231,6 +220,7 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Optimization for Rho > 0:
   if(sum(Rho > 0) > 0){
     for(i in (i0 + 1):nrho){
 
@@ -239,6 +229,7 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.bb(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -249,15 +240,20 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         hess.bb(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
 
-      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coef[, i - 1], method = method, control = control)
+      # Maximization
+      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i - 1], method = method, control = control)
 
+      # Storing information from maximization
       max.info$converged[i] <- ML$code <= 2
       max.info$message[i] <- ML$message
       max.info$method[i] <- ML$type
       max.info$iterations[i] <- ML$iterations
-      coef[,i] <- ML$estimate
+
+      # Storing parameters and log-likelihood value from maximization
+      coefs[,i] <- ML$estimate
       value[i]  <-  ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -265,19 +261,19 @@ ML.bb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
-  expl.coef  <- as.matrix(coef[(p1 + 1):(p1 + p2), ])
+  # Storing the estimated parameters for model.expl and model.resp over Rho.
+  expl.coef  <- as.matrix(coefs[(p1 + 1):(p1 + p2), ])
   if(p2 == 1){
     expl.coef  <- t(expl.coef)
     rownames(expl.coef) <- names(model.expl$coefficients)
   }
 
-  colnames(expl.coef) <- paste(Rho)
-  coef <- as.matrix(coef[1:(p1), ])
+  coef <- as.matrix(coefs[1:(p1), ])
   if(p1 == 1){
     coef <- t(coef)
     rownames(coef) <- names(model.resp$coefficients)
   }
-  colnames(coef) <- paste(Rho)
+  colnames(expl.coef) <- colnames(coef) <- names(sigma) <- paste(Rho)
 
   max.info <- lapply(max.info, stats::setNames, nm = paste(Rho))
 
@@ -302,26 +298,24 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 
   d <- p1 + p2 + 1
 
-  coefs <- matrix(nrow=(p1 + p2 + 1), ncol = nrho)
+  coefs <- matrix(nrow=(p1 + p2 + 1), ncol = nrho) # vector with all model parameters
   rownames(coefs) <- c(names(model.resp$coef), "sigma.res.resp", names(model.expl$coef))
 
-  value <- vector(length = nrho)
-  names(value) <- paste(Rho)
-  max.type <- value
 
   dots <- list(...)
-  if(is.null(dots$method))
+  if(is.null(dots$method)) # which optimization method should be used?
     method <- "NR"
   else
     method <- dots$method
-  if(is.null(dots$control))
+  if(is.null(dots$control)) # any control arguments given?
     control <- NULL
   else
     control <- dots$control
 
   i0 <- which(Rho == 0)
-  coefs[, i0] <- c(coef(model.resp), sqrt(summary(model.resp)$dispersion), coef(model.expl))
+  coefs[, i0] <- c(coef(model.resp), sqrt(summary(model.resp)$dispersion), coef(model.expl)) # storing the parameters for Rho = 0
 
+  # Convergence information, matrix and stored values for Rho = 0
   max.info <- list(converged = array(dim=nrho), message = array(dim=nrho), method = array(dim=nrho),
                    iterations = array(dim=nrho))
   max.info$converged[i0] <- model.expl$converged == TRUE & model.resp$converged == TRUE
@@ -329,20 +323,23 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   max.info$method[i0] <- "glm"
   max.info$iterations[i0] <- NA
 
-  glmVcov <- stats::vcov(model.resp)
-  expl.glmVcov <- stats::vcov(model.expl)
 
+  value <- vector(length = nrho) # vector to store values of the log-likelihood
+  names(value) <- paste(Rho)
   value[i0] <- LogL.bc(coefs[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
                        outc.expl = outc.expl)
 
-  sigma <- list()
+  sigma <- list() # List to store the covariance matrices for the model parameters
   sigma[[i0]] <- matrix(0, nrow = d, ncol = d)
+  glmVcov <- stats::vcov(model.resp)
+  expl.glmVcov <- stats::vcov(model.expl)
   sigma[[i0]][1:p1, 1:p1] <- glmVcov
   sigma[[i0]][(p1 + 2):d, (p1 + 2):d] <- expl.glmVcov
   sigma[[i0]][(p1 + 1), (p1 + 1)] <- summary(model.resp)$dispersion^2/(2*model.resp$df.residual)
   dimnames.sigma <- c(dimnames(glmVcov)[[1]], "sigma.res.resp", dimnames(expl.glmVcov)[[1]])
   dimnames(sigma[[i0]]) <- list(dimnames.sigma, dimnames.sigma)
 
+  # Optimization for Rho < 0:
   if(sum(Rho < 0) > 0){
     for(i in 1:(i0 - 1)){
 
@@ -351,6 +348,7 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.bc(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -360,15 +358,20 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.bc(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
+      # Maximization
       ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i0 - i + 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i0 - i] <- ML$code <= 2
       max.info$message[i0 - i] <- ML$message
       max.info$method[i0 - i] <- ML$type
       max.info$iterations[i0 - i] <- ML$iterations
+
+      # Storing parameters and log-likelihood value from maximization
       coefs[,i0 - i] <- ML$estimate
       value[i0 - i] <- ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i0 - i]] <- -solve(ML$hessian)
 
 
@@ -377,6 +380,7 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Optimization for Rho > 0:
   if(sum(Rho > 0) > 0){
     for(i in (i0 + 1):nrho){
 
@@ -385,6 +389,7 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.bc(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -394,15 +399,20 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.bc(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
+      # Maximization
       ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i - 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i] <- ML$code <= 2
       max.info$message[i] <- ML$message
       max.info$method[i] <- ML$type
       max.info$iterations[i] <- ML$iterations
+
+      # Storing parameters and log-likelihood value from maximization
       coefs[,i] <- ML$estimate
       value[i]  <-  ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -410,20 +420,19 @@ ML.bc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Storing the estimated parameters for model.expl and model.resp over Rho.
   expl.coef <- as.matrix(coefs[(p1 + 2):(p1 + p2 + 1), ])
   if(p2 == 1){
     expl.coef  <- t(expl.coef)
     rownames(expl.coef) <- names(model.expl$coefficients)
   }
-  colnames(expl.coef) <- paste(Rho)
   sigma.res.resp <- as.matrix(coefs[p1 + 1, ])
-  rownames(sigma.res.resp) <- paste(Rho)
   coef <- as.matrix(coefs[1:p1, ])
   if(p1 == 1){
     coef <- t(coef)
     rownames(coef) <- names(model.resp$coefficients)
   }
-  colnames(coef) <- paste(Rho)
+  colnames(expl.coef) <- rownames(sigma.res.resp) <- colnames(coef) <- names(sigma) <- paste(Rho)
 
   max.info <- lapply(max.info, stats::setNames, nm = paste(Rho))
 
@@ -450,26 +459,23 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 
   d <- p1 + p2 - 1
 
-  coef <- matrix(nrow = (p1 + p2), ncol = nrho)
-  rownames(coef) <- c(names(model.resp$coef), names(model.expl$coef), "sigma.res.expl")
-
-  value <- vector(length = nrho)
-  names(value) <- paste(Rho)
-  max.type <- value
+  coefs <- matrix(nrow = (p1 + p2), ncol = nrho) # vector with all model parameters
+  rownames(coefs) <- c(names(model.resp$coef), names(model.expl$coef), "sigma.res.expl")
 
   dots <- list(...)
-  if(is.null(dots$method))
+  if(is.null(dots$method)) # which optimization method should be used?
     method <- "NR"
   else
     method <- dots$method
-  if(is.null(dots$control))
+  if(is.null(dots$control)) # any control arguments given?
     control <- NULL
   else
     control <- dots$control
 
   i0 <- which(Rho == 0)
-  coef[, i0] <- c(coef(model.resp), coef(model.expl), sqrt(summary(model.expl)$dispersion))
+  coefs[, i0] <- c(coef(model.resp), coef(model.expl), sqrt(summary(model.expl)$dispersion)) # storing the parameters for Rho = 0
 
+  # Convergence information, matrix and stored values for Rho = 0
   max.info <- list(converged = array(dim=nrho), message = array(dim=nrho), method = array(dim=nrho),
                    iterations = array(dim=nrho))
   max.info$converged[i0] <- model.expl$converged == TRUE & model.resp$converged == TRUE
@@ -477,21 +483,22 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   max.info$method[i0] <- "glm"
   max.info$iterations[i0] <- NA
 
-
-  glmVcov <- stats::vcov(model.resp)
-  expl.glmVcov <- stats::vcov(model.expl)
-
-  value[i0] <- LogL.cb(coef[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
+  value <- vector(length = nrho) # vector to store values of the log-likelihood
+  names(value) <- paste(Rho)
+  value[i0] <- LogL.cb(coefs[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
                        outc.expl = outc.expl)
 
-  sigma <- list()
+  sigma <- list() # List to store the covariance matrices for the model parameters
   sigma[[i0]] <- matrix(0, nrow = d + 1, ncol = d + 1)
+  glmVcov <- stats::vcov(model.resp)
+  expl.glmVcov <- stats::vcov(model.expl)
   sigma[[i0]][1:p1, 1:p1] <- glmVcov
   sigma[[i0]][(p1 + 1):d, (p1 + 1):d] <- expl.glmVcov
   sigma[[i0]][(d + 1), (d + 1)] <- summary(model.expl)$dispersion/(2*model.expl$df.residual)
   dimnames.sigma <- c(dimnames(glmVcov)[[1]], dimnames(expl.glmVcov)[[1]], "sigma.res.expl")
   dimnames(sigma[[i0]]) <- list(dimnames.sigma, dimnames.sigma)
 
+  # Optimization for Rho < 0:
   if(sum(Rho < 0) > 0){
     for(i in 1:(i0 - 1)){
 
@@ -500,6 +507,7 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.cb(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -509,15 +517,20 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.cb(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
-      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coef[, i0 - i + 1], method = method)
+      # Maximization
+      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i0 - i + 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i0 - i] <- ML$code <= 2
       max.info$message[i0 - i] <- ML$message
       max.info$method[i0 - i] <- ML$type
       max.info$iterations[i0 - i] <- ML$iterations
-      coef[,i0 - i] <- ML$estimate
+
+      # Storing parameters and log-likelihood value from maximization
+      coefs[,i0 - i] <- ML$estimate
       value[i0 - i] <- ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i0 - i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -525,6 +538,7 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Optimization for Rho > 0:
   if(sum(Rho > 0) > 0){
     for(i in (i0 + 1):nrho){
 
@@ -533,6 +547,7 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.cb(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -543,35 +558,40 @@ ML.cb <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         hess.cb(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
 
-      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coef[, i - 1], method = method)
+      # Maximization
+      ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i - 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i] <- ML$code <= 2
       max.info$message[i] <- ML$message
       max.info$method[i] <- ML$type
       max.info$iterations[i] <- ML$iterations
-      coef[,i] <- ML$estimate
+
+      # Storing parameters and log-likelihood value from maximization
+      coefs[,i] <- ML$estimate
       value[i]  <-  ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i]] <- -solve(ML$hessian)
+
       if(progress == TRUE)
         cat("   Time elapsed:", (proc.time()-ptm)[3], "s", "\n")
     }
   }
 
-  expl.coef <- as.matrix(coef[(p1 + 1):(p1 + p2 - 1), ])
+  # Storing the estimated parameters for model.expl and model.resp over Rho.
+  expl.coef <- as.matrix(coefs[(p1 + 1):(p1 + p2 - 1), ])
   if(p2 == 2){
     expl.coef  <- t(expl.coef)
     rownames(expl.coef) <- names(model.expl$coefficients)
   }
-  colnames(expl.coef) <- paste(Rho)
-  sigma.res.expl <- as.matrix(coef[p1 + p2, ])
-  rownames(sigma.res.expl) <- paste(Rho)
-  coef <- as.matrix(coef[1:(p1), ])
+  sigma.res.expl <- as.matrix(coefs[p1 + p2, ])
+  coef <- as.matrix(coefs[1:(p1), ])
   if(p1 == 1){
     coef <- t(coef)
     rownames(coef) <- names(model.resp$coefficients)
   }
-  colnames(coef) <- paste(Rho)
+  colnames(expl.coef) <- rownames(sigma.res.expl) <- colnames(coef) <- names(sigma) <- paste(Rho)
 
   max.info <- lapply(max.info, stats::setNames, nm = paste(Rho))
 
@@ -596,27 +616,24 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   p1 <- length(coef(model.resp)) + 1
   p2 <- length(coef(model.expl)) + 1
 
-  coefs <- matrix(nrow = (p1  +p2), ncol = nrho)
+  coefs <- matrix(nrow = (p1  +p2), ncol = nrho) # vector with all model parameters
   rownames(coefs) <- c(names(model.resp$coef), "sigma.res.resp", names(model.expl$coef), "sigma.res.expl")
 
-  value <- vector(length = nrho)
-  names(value) <- paste(Rho)
-  max.type <- value
-
   dots <- list(...)
-  if(is.null(dots$method))
+  if(is.null(dots$method)) # which optimization method should be used?
     method <- "NR"
   else
     method <- dots$method
-  if(is.null(dots$control))
+  if(is.null(dots$control)) # any control arguments given?
     control <- NULL
   else
     control <- dots$control
 
   i0 <- which(Rho == 0)
   coefs[, i0] <- c(coef(model.resp), sqrt(summary(model.resp)$dispersion), coef(model.expl),
-                   sqrt(summary(model.expl)$dispersion))
+                   sqrt(summary(model.expl)$dispersion)) # storing the parameters for Rho = 0
 
+  # Convergence information, matrix and stored values for Rho = 0
   max.info <- list(converged = array(dim=nrho), message = array(dim=nrho), method = array(dim=nrho),
                    iterations = array(dim=nrho))
   max.info$converged[i0] <- model.expl$converged == TRUE & model.resp$converged == TRUE
@@ -624,14 +641,15 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   max.info$method[i0] <- "glm"
   max.info$iterations[i0] <- NA
 
-  glmVcov <- stats::vcov(model.resp)
-  expl.glmVcov <- stats::vcov(model.expl)
-
+  value <- vector(length = nrho) # vector to store values of the log-likelihood
+  names(value) <- paste(Rho)
   value[i0] <- LogL.cc(coefs[, i0], Rho = 0, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
                        outc.expl = outc.expl)
 
-  sigma <- list()
+  sigma <- list() # List to store the covariance matrices for the model parameters
   sigma[[i0]] <- matrix(0, nrow = p1 + p2, ncol = p1 + p2)
+  glmVcov <- stats::vcov(model.resp)
+  expl.glmVcov <- stats::vcov(model.expl)
   sigma[[i0]][1:(p1 - 1), 1:(p1 - 1)] <- glmVcov
   sigma[[i0]][(p1 + 1):(p1 + p2 - 1), (p1 + 1):(p1 + p2 - 1)] <- expl.glmVcov
   sigma[[i0]][(p1), (p1)] <- summary(model.resp)$dispersion/(2*model.resp$df.residual)
@@ -639,6 +657,7 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
   dimnames.sigma <- c(dimnames(glmVcov)[[1]], "sigma.res.resp", dimnames(expl.glmVcov)[[1]], "sigma.res.expl")
   dimnames(sigma[[i0]]) <- list(dimnames.sigma, dimnames.sigma)
 
+  # Optimization for Rho < 0:
   if(sum(Rho < 0) > 0){
     for(i in 1:(i0-1)){
 
@@ -647,6 +666,7 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.cc(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -656,15 +676,20 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.cc(par, Rho = Rho[i0 - i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
+      # Maximization
       ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i0 - i + 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i0 - i] <- ML$code <= 2
       max.info$message[i0 - i] <- ML$message
       max.info$method[i0 - i] <- ML$type
       max.info$iterations[i0 - i] <- ML$iterations
+
+      # Storing parameters and log-likelihood value from maximization
       coefs[,i0 - i] <- ML$estimate
       value[i0 - i] <- ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i0 - i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -672,6 +697,7 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Optimization for Rho > 0:
   if(sum(Rho > 0) > 0){
     for(i in (i0 + 1):nrho){
 
@@ -680,6 +706,7 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
         ptm <- proc.time()
       }
 
+      # Functions for use by maxLik, log-likelihood and analytic gradient and hessian
       f <- function(par)
         LogL.cc(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
@@ -689,16 +716,20 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
       h <- function(par)
         hess.cc(par, Rho = Rho[i], X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl)
 
-
+      # Maximization
       ML <- maxLik::maxLik(logLik = f, grad = g, hess = h, start = coefs[, i - 1], method = method)
 
+      # Storing information from maximization
       max.info$converged[i] <- ML$code <= 2
       max.info$message[i] <- ML$message
       max.info$method[i] <- ML$type
       max.info$iterations[i] <- ML$iterations
+
+      # Storing parameters and log-likelihood value from maximization
       coefs[, i] <- ML$estimate
       value[i]  <-  ML$maximum
 
+      # Solving the hessian to obtain covariance matrix for the parameters
       sigma[[i]] <- -solve(ML$hessian)
 
       if(progress == TRUE)
@@ -706,22 +737,20 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
     }
   }
 
+  # Storing the estimated parameters for model.expl and model.resp over Rho.
   expl.coef <-as.matrix(coefs[(p1 + 1):(p1 + p2 - 1), ])
   if(p2 == 2){
     expl.coef  <- t(expl.coef)
     rownames(expl.coef) <- names(model.expl$coefficients)
   }
-  colnames(expl.coef) <- paste(Rho)
   sigma.res.expl <- as.matrix(coefs[p1 + p2, ])
-  rownames(sigma.res.expl) <- paste(Rho)
   coef <- as.matrix(coefs[1:(p1 - 1), ])
   if(p1 == 2){
     coef <- t(coef)
     rownames(coef) <- names(model.resp$coefficients)
   }
   sigma.res.resp <- as.matrix(coefs[p1, ])
-  rownames(sigma.res.resp) <- paste(Rho)
-  colnames(coef) <- paste(Rho)
+  colnames(expl.coef) <- rownames(sigma.res.expl) <- rownames(sigma.res.resp) <- colnames(coef) <- names(sigma) <- paste(Rho)
 
   max.info <- lapply(max.info, stats::setNames, nm = paste(Rho))
 
@@ -752,16 +781,19 @@ NULL
 #' @rdname LogL
 #' @export
 LogL.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
+  coef.expl <- as.matrix(par[(d.resp + 1):(length(par))])
 
-  coef.expl <- as.matrix(par[(d.resp+1):(length(par))])
-
-  w.resp <- (2*outc.resp-1)*X.resp%*%coef.resp
+  # Components to be used in the log-likelihood
+  w.resp <- (2*outc.resp - 1)*X.resp%*%coef.resp
   w.expl <- X.expl%*%coef.expl
-  Rhos <- (2*outc.resp-1)*Rho
-
+  Rhos <- (2*outc.resp - 1)*Rho
   n <- length(outc.resp)
+
+  # Calculating the terms of the log-likelihood:
   terms <- numeric(0)
   for(i in 1:n){
     if(outc.expl[i] == 1)
@@ -783,19 +815,20 @@ LogL.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @rdname LogL
 #' @export
 LogL.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
-  d.resp <- dim(X.resp)[2]
 
+  # Separating the coefficients from model.resp and model.expl
+  d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 2):(length(par))])
-
   sigma.res.resp <- par[(d.resp + 1)]
-  n <- length(outc.resp)
 
+  # Components to be used in the log-likelihood
+  n <- length(outc.resp)
   w1 <- X.expl%*%expl.coef
   w2 <- (outc.resp - X.resp%*%coef.resp)/sigma.res.resp
 
   logl <- -n*log(sigma.res.resp) +
-    sum(log(stats::pnorm((2*outc.expl - 1)*(w1 - Rho*w2)/sqrt(1 - Rho^2))) +
+    sum(log(stats::pnorm((2*outc.expl - 1)*(w1 + Rho*w2)/sqrt(1 - Rho^2))) +
           log(stats::dnorm(w2)))
 
   return(logl)
@@ -806,16 +839,19 @@ LogL.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @export
 LogL.cb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
 
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 1):(length(par) - 1)])
   sigma.res.expl <- par[length(par)]
-  n <- length(outc.resp)
 
+  # Components to be used in the log-likelihood
+  n <- length(outc.resp)
   w1 <- X.resp%*%coef.resp
   w2 <- (outc.expl - X.expl%*%expl.coef)/sigma.res.expl
 
-  logl <- -n*log(sigma.res.expl) + sum(log(stats::pnorm((2*outc.resp - 1)*(w1 - Rho*w2)/sqrt(1 - Rho^2))) + log(stats::dnorm(w2)))
+  logl <- -n*log(sigma.res.expl) + sum(log(stats::pnorm((2*outc.resp - 1)*(w1 + Rho*w2)/sqrt(1 - Rho^2))) +
+                                         log(stats::dnorm(w2)))
 
   return(logl)
 }
@@ -825,12 +861,14 @@ LogL.cb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @export
 LogL.cc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
 
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp+2):(length(par)-1)] )
   sigma.res.resp <- par[d.resp+1]
   sigma.res.expl <- par[length(par)]
 
+  # Components to be used in the log-likelihood
   Q1 <- outc.expl - X.expl%*%expl.coef
   Q2 <- outc.resp - X.resp%*%coef.resp
   Qs <- cbind(Q1, Q2)
@@ -863,17 +901,18 @@ NULL
 #' @rdname grr
 #' @export
 grr.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- par[1:d.resp]
   coef.expl <- par[(d.resp + 1):(length(par))]
 
+  # Components to be used in the calculation of the gradients
   q <- 2*outc.resp - 1
   w.resp1 <- tcrossprod(coef.resp, X.resp)
   w.resp2 <- q*w.resp1
   w.expl <- tcrossprod(coef.expl, X.expl)
   Rhos <- q*Rho
-
-
   n <- length(outc.resp)
 
   Phi2 <- numeric(0)
@@ -883,17 +922,18 @@ grr.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.
     else
       Phi2[i] <- mvtnorm::pmvnorm(lower = -Inf, upper = c(w.resp2[i], -w.expl[i]), mean = c(0, 0), corr = rbind(c(1, -Rhos[i]), c(-Rhos[i], 1)))
   }
+  #
 
-
+  # Calculating the gradients of the log-likelihood wrt to the parameters of model.resp and model.expl
   gr.d <- ifelse(outc.expl == 1, (q*stats::dnorm(w.resp1)*stats::pnorm((w.expl - Rho*(w.resp1))/sqrt(1 - Rho^2))/Phi2),
                  (q*stats::dnorm(w.resp1)*stats::pnorm((-w.expl + Rho*(w.resp1))/sqrt(1 - Rho^2))/Phi2))
 
-  gr.coef.resp <-  crossprod(gr.d, X.resp)
+  gr.coef.resp <-  crossprod(gr.d, X.resp) # Gradient of the log-likelihood wrt the parameters of model.resp
 
   gr.b <- ifelse(outc.expl == 1, (stats::dnorm(w.expl)*stats::pnorm(q*(w.resp1 - Rho*(w.expl))/sqrt(1 - Rho^2))/Phi2),
                  -(stats::dnorm(w.expl)*stats::pnorm(q*(w.resp1 - Rho*(w.expl))/sqrt(1 - Rho^2))/Phi2))
 
-  gr.coef.expl <-  crossprod(gr.b, X.expl)
+  gr.coef.expl <-  crossprod(gr.b, X.expl) # Gradient of the log-likelihood wrt the parameters of model.expl
 
   return(c(gr.coef.resp, gr.coef.expl))
 }
@@ -901,27 +941,28 @@ grr.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.
 #' @rdname grr
 #' @export
 grr.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 2):(length(par))])
-
   sigma.res.resp <- par[(d.resp + 1)]
-  n <- length(outc.resp)
 
+  # Components to be used in the calculation of the gradients
+  n <- length(outc.resp)
   w1 <- X.expl%*%expl.coef
   w2 <- (outc.resp - X.resp%*%coef.resp)/sigma.res.resp
   q <- 2*outc.expl - 1
-
-  A <- q*(w1 - Rho*w2)/sqrt(1 - Rho^2)
-
+  A <- q*(w1 + Rho*w2)/sqrt(1 - Rho^2)
   ratioA <- stats::dnorm(A)/stats::pnorm(A)
 
-  gr.expl.coef <- crossprod(q/sqrt(1 - Rho^2)*ratioA, X.expl)
+  # Calculating the gradients of the log-likelihood wrt to the parameters of model.resp and model.expl
+  gr.expl.coef <- crossprod(q/sqrt(1 - Rho^2)*ratioA, X.expl) # Gradient of the log-likelihood wrt the parameters of model.expl
 
-  gr.coef.resp <- crossprod(q*Rho/(sigma.res.resp*sqrt(1-Rho^2))*ratioA + w2/sigma.res.resp, X.resp)
+  gr.coef.resp <- crossprod(-q*Rho/(sigma.res.resp*sqrt(1-Rho^2))*ratioA + w2/sigma.res.resp, X.resp) # Gradient of the log-likelihood wrt the parameters of model.resp
 
-  gr.sigma <- -n/sigma.res.resp  +  sum(w2^2/sigma.res.resp  +
-                                          q*Rho*as.vector(w2/(sigma.res.resp*sqrt(1 - Rho^2)))*as.vector(ratioA))
+  gr.sigma <- -n/sigma.res.resp  +  sum(w2^2/sigma.res.resp  -
+                                          q*Rho*as.vector(w2/(sigma.res.resp*sqrt(1 - Rho^2)))*as.vector(ratioA)) # Gradient of the log-likelihood wrt the error term standard deviation of model.resp
 
   return(c(gr.coef.resp, gr.sigma, gr.expl.coef))
 
@@ -930,28 +971,28 @@ grr.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.
 #' @rdname grr
 #' @export
 grr.cb <-  function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 1):(length(par) - 1)])
   sigma.res.expl <- par[length(par)]
 
+  # Components to be used in the calculation of the gradients
   n <- length(outc.resp)
-
   w1 <-  X.resp%*%coef.resp
   w2 <- (outc.expl - X.expl%*%expl.coef)/sigma.res.expl
-
   q <- 2*outc.resp - 1
-
-  B <- q*(w1 - Rho*w2)/sqrt(1 - Rho^2)
-
+  B <- q*(w1 + Rho*w2)/sqrt(1 - Rho^2)
   ratioB <- stats::dnorm(B)/stats::pnorm(B)
 
-  gr.coef.resp <- crossprod(q/sqrt(1 - Rho^2)*ratioB, X.resp)
+  # Calculating the gradients of the log-likelihood wrt to the parameters of model.resp and model.expl
+  gr.coef.resp <- crossprod(q/sqrt(1 - Rho^2)*ratioB, X.resp) # Gradient of the log-likelihood wrt the parameters of model.resp
 
-  gr.expl.coef <- crossprod(q*Rho/(sigma.res.expl*sqrt(1 - Rho^2))*ratioB + w2/sigma.res.expl, X.expl)
+  gr.expl.coef <- crossprod(-q*Rho/(sigma.res.expl*sqrt(1 - Rho^2))*ratioB + w2/sigma.res.expl, X.expl) # Gradient of the log-likelihood wrt the parameters of model.expl
 
   gr.sigma <- -n/sigma.res.expl + sum(w2^2/sigma.res.expl -
-                                        q*Rho*as.vector(w2/(sigma.res.expl*sqrt(1 - Rho^2)))*as.vector(ratioB))
+                                        q*Rho*as.vector(w2/(sigma.res.expl*sqrt(1 - Rho^2)))*as.vector(ratioB)) # Gradient of the log-likelihood wrt the error term standard deviation of model.expl
 
   return(c(gr.coef.resp, gr.expl.coef, gr.sigma))
 }
@@ -959,27 +1000,31 @@ grr.cb <-  function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @rdname grr
 #' @export
 grr.cc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 2):(length(par) - 1)])
   sigma.res.resp <- par[d.resp + 1]
   sigma.res.expl <- par[length(par)]
 
+  # Components to be used in the calculation of the gradients
   n <- length(outc.resp)
   q1 <- outc.expl - X.expl%*%expl.coef
   q2 <- outc.resp - X.resp%*%coef.resp
 
+  # Calculating the gradients of the log-likelihood wrt to the parameters of model.resp and model.expl
   gr.expl.coef <- colSums(as.vector(q1/sigma.res.expl -
-                                      Rho*q2/sigma.res.resp)*X.expl)*1/((1 - Rho^2)*sigma.res.expl)
+                                      Rho*q2/sigma.res.resp)*X.expl)*1/((1 - Rho^2)*sigma.res.expl) # Gradient of the log-likelihood wrt the parameters of model.expl
 
   gr.coef.resp <- colSums(as.vector(q2/sigma.res.resp -
-                                      Rho*q1/sigma.res.expl)*X.resp)/((1 - Rho^2)*sigma.res.resp)
+                                      Rho*q1/sigma.res.expl)*X.resp)/((1 - Rho^2)*sigma.res.resp) # Gradient of the log-likelihood wrt the parameters of model.resp
 
   gr.sigma.b <- -n/sigma.res.expl + 1/(sigma.res.expl^2*(1 - Rho^2))*sum(q1^2/sigma.res.expl -
-                                                                           Rho*q2*q1/sigma.res.resp)
+                                                                           Rho*q2*q1/sigma.res.resp) # Gradient of the log-likelihood wrt the error term standard deviation of model.expl
 
   gr.sigma.t <- -n/sigma.res.resp + 1/(sigma.res.resp^2*(1 - Rho^2))*sum(q2^2/sigma.res.resp -
-                                                                           Rho*q2*q1/sigma.res.expl)
+                                                                           Rho*q2*q1/sigma.res.expl) # Gradient of the log-likelihood wrt the error term standard deviation of model.resp
 
   return(c(gr.coef.resp, gr.sigma.t, gr.expl.coef, gr.sigma.b))
 
@@ -1005,18 +1050,18 @@ NULL
 #' @rdname hess
 #' @export
 hess.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
+
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- par[1:d.resp]
   coef.expl <- par[(d.resp + 1):(length(par))]
 
+  # Components to be used in the calculation of the hessians
   w.expl <- tcrossprod(coef.expl, X.expl)
   w.resp1 <- tcrossprod(coef.resp, X.resp)
   q <- 2*outc.resp - 1
   w.resp2 <- q*w.resp1
-
-
   Rhos <- q*Rho
-
   n <- length(outc.resp)
 
   Phi2 <- numeric(0)
@@ -1030,30 +1075,31 @@ hess.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
   pnorm1 <- stats::pnorm((w.resp2 - q*Rho*(w.expl))/sqrt(1 - Rho^2))
   dnorm1 <- stats::dnorm((w.resp2 - q*Rho*(w.expl))/sqrt(1 - Rho^2))
   dnorm.expl <- stats::dnorm(w.expl)
-
-  secder.expl <- ifelse(outc.expl == 1,
-                        -dnorm.expl/Phi2*(pnorm1^2/Phi2*dnorm.expl + w.expl*pnorm1 + dnorm1*q*Rho/sqrt(1 - Rho^2)),
-                        -dnorm.expl/Phi2*(pnorm1^2/Phi2*dnorm.expl - w.expl*pnorm1 - dnorm1*q*Rho/sqrt(1 - Rho^2)))
-
-  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl)
-
   dnorm.resp <- stats::dnorm(w.resp1)
   pnorm2 <- stats::pnorm((w.expl - Rho*(w.resp1))/sqrt(1 - Rho^2))
   dnorm2 <- stats::dnorm((w.expl - Rho*(w.resp1))/sqrt(1 - Rho^2))
   pnorm3 <- stats::pnorm((-w.expl + Rho*(w.resp1))/sqrt(1 - Rho^2))
   dnorm3 <- stats::dnorm((-w.expl + Rho*(w.resp1))/sqrt(1 - Rho^2))
+  ##
+
+  # Calculating the hessians of the log-likelihood wrt to the parameters of model.resp and model.expl
+  secder.expl <- ifelse(outc.expl == 1,
+                        -dnorm.expl/Phi2*(pnorm1^2/Phi2*dnorm.expl + w.expl*pnorm1 + dnorm1*q*Rho/sqrt(1 - Rho^2)),
+                        -dnorm.expl/Phi2*(pnorm1^2/Phi2*dnorm.expl - w.expl*pnorm1 - dnorm1*q*Rho/sqrt(1 - Rho^2)))
+
+  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl) # Second partial derivative wrt the parameters of model.expl
 
   secder.resp <- ifelse(outc.expl == 1,
                         -q*dnorm.resp/Phi2*(q*pnorm2^2/Phi2*dnorm.resp + w.resp1*pnorm2 + dnorm2*Rho/sqrt(1 - Rho^2)),
                         q*dnorm.resp/Phi2*(-q*pnorm3^2/Phi2*dnorm.resp - w.resp1*pnorm3 + dnorm3*Rho/sqrt(1 - Rho^2)))
 
-  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp)
+  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp) # Second partial derivative wrt the parameters of model.resp
 
   secder.er <- ifelse(outc.expl==1,
                       q*dnorm.expl/Phi2*(-dnorm.resp/Phi2*pnorm1*pnorm2+dnorm1/sqrt(1-Rho^2)),
                       -q*dnorm.expl/Phi2*(-dnorm.resp/Phi2*pnorm1*pnorm3+dnorm1/sqrt(1-Rho^2)))
 
-  hess.er <- crossprod(c(secder.er)*X.expl, X.resp)
+  hess.er <- crossprod(c(secder.er)*X.expl, X.resp) # Mixed partial derivative wrt the parameters of model.expl and model.resp
 
 
   hess <- rbind(cbind(hess.resp, t(hess.er)), cbind(hess.er, hess.expl))
@@ -1065,47 +1111,47 @@ hess.bb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @export
 hess.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
 
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 2):(length(par))])
-
   sigma.res.resp <- par[(d.resp + 1)]
-  n <- length(outc.resp)
 
+  # Components to be used in the calculation of the hessians
+  n <- length(outc.resp)
   w1 <- X.expl%*%expl.coef
   w2 <- (outc.resp - X.resp%*%coef.resp)/sigma.res.resp
   q <- 2*outc.expl - 1
-
-  A <- q*(w1 - Rho*w2)/sqrt(1 - Rho^2)
-
+  A <- q*(w1 + Rho*w2)/sqrt(1 - Rho^2)
   ratioA <- stats::dnorm(A)/stats::pnorm(A)
 
+  # Calculating the hessians of the log-likelihood wrt to the parameters of model.resp and model.expl
   secder.expl <- -ratioA/(1 - Rho^2)*(ratioA + A)
 
-  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl)
+  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl) # Second partial derivative wrt the parameters of model.expl
 
-  secder.er <- -ratioA*Rho/(sigma.res.resp*(1 - Rho^2))*(ratioA + A)
+  secder.er <- ratioA*Rho/(sigma.res.resp*(1 - Rho^2))*(ratioA + A)
 
-  hess.er <- crossprod(c(secder.er)*X.expl, X.resp)
+  hess.er <- crossprod(c(secder.er)*X.expl, X.resp) # Mixed partial derivative wrt the parameters of model.expl and model.resp
 
   secder.resp <- -1/sigma.res.resp^2*(ratioA*Rho^2/(1 - Rho^2)*(ratioA + A) + 1)
 
-  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp)
+  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp) # Second partial derivative wrt the parameters of model.resp
 
-  secder.es <- -Rho*w2/(sigma.res.resp*(1 - Rho^2))*ratioA*(ratioA + A)
+  secder.es <- Rho*w2/(sigma.res.resp*(1 - Rho^2))*ratioA*(ratioA + A)
 
-  hess.es <- crossprod(c(secder.es), X.expl)
+  hess.es <- crossprod(c(secder.es), X.expl) # Mixed partial derivative wrt the parameters of model.expl and the error term standard deviation of model.resp
 
-  secder.sr <- 1/(sigma.res.resp^2)*(q*Rho/(sqrt(1 - Rho^2))*ratioA +
-                                       Rho^2*w2/(1 - Rho^2)*(ratioA^2 + ratioA*A)  + 2*w2)
+  secder.sr <- 1/(sigma.res.resp^2)*(q*Rho/(sqrt(1 - Rho^2))*ratioA -
+                                       Rho^2*w2/(1 - Rho^2)*(ratioA^2 + ratioA*A)  - 2*w2)
 
-  hess.sr <- -crossprod(c(secder.sr), X.resp)
+  hess.sr <- crossprod(c(secder.sr), X.resp) # Mixed partial derivative wrt the parameters of model.resp and the error term standard deviation of model.resp
 
-  secder.ss <- ratioA/(sigma.res.resp^2)*(ratioA*Rho^2*w2^2/(1 - Rho^2) +
-                                            A*Rho^2*w2^2/(1 - Rho^2) + 2*q*Rho*w2/sqrt(1 - Rho^2)) +
+  secder.ss <- ratioA/(sigma.res.resp^2)*(-ratioA*Rho^2*w2^2/(1 - Rho^2) -
+                                            A*Rho^2*w2^2/(1 - Rho^2) + 2*q*Rho*w2/sqrt(1 - Rho^2)) -
     3*w2^2/(sigma.res.resp^2)
 
-  hess.ss <- -sum(secder.ss) + n/(sigma.res.resp^2)
+  hess.ss <- sum(secder.ss) + n/(sigma.res.resp^2) # Second partial derivative wrt the error term standard deviation of model.resp
 
   hess <- rbind(cbind(hess.resp, t(hess.sr), t(hess.er)), cbind(hess.sr, hess.ss, hess.es),
                 cbind(hess.er, t(hess.es), hess.expl))
@@ -1116,50 +1162,48 @@ hess.bc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @export
 hess.cb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
 
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 1):(length(par) - 1)])
   sigma.res.expl <- par[length(par)]
 
+  # Components to be used in the calculation of the hessians
   n <- length(outc.resp)
-
   w1 <- X.resp%*%coef.resp
   w2 <- (outc.expl - X.expl%*%expl.coef)/sigma.res.expl
-
   q <- 2*outc.resp - 1
-
-  B <- q*(w1 - Rho*w2)/sqrt(1 - Rho^2)
-
+  B <- q*(w1 + Rho*w2)/sqrt(1 - Rho^2)
   ratioB <- stats::dnorm(B)/stats::pnorm(B)
 
 
-
+  # Calculating the hessians of the log-likelihood wrt to the parameters of model.resp and model.expl
   secder.expl <- -1/(sigma.res.expl^2)*(ratioB*Rho^2/(1 - Rho^2)*(ratioB + B) + 1)
 
-  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl)
+  hess.expl <- crossprod(c(secder.expl)*X.expl, X.expl) # Second partial derivative wrt the parameters of model.expl
 
-  secder.er <- -ratioB*Rho/(sigma.res.expl*(1 - Rho^2))*(ratioB + B)
+  secder.er <- ratioB*Rho/(sigma.res.expl*(1 - Rho^2))*(ratioB + B)
 
-  hess.er <- crossprod(c(secder.er)*X.expl, X.resp)
+  hess.er <- crossprod(c(secder.er)*X.expl, X.resp) # Mixed partial derivative wrt the parameters of model.expl and model.resp
 
   secder.resp <- -ratioB/(1 - Rho^2)*(ratioB + B)
 
-  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp)
+  hess.resp <- crossprod(c(secder.resp)*X.resp, X.resp) # Second partial derivative wrt the parameters of model.resp
 
-  secder.sr <- -Rho*w2/(sigma.res.expl*(1 - Rho^2))*ratioB*(ratioB + B)
+  secder.sr <- Rho*w2/(sigma.res.expl*(1 - Rho^2))*ratioB*(ratioB + B)
 
-  hess.sr <- crossprod(c(secder.sr), X.resp)
+  hess.sr <- crossprod(c(secder.sr), X.resp) # Mixed partial derivative wrt the parameters of model.resp and the error term standard deviation of model.expl
 
-  secder.es <- 1/(sigma.res.expl^2)*(q*Rho/(sqrt(1 - Rho^2))*ratioB +
-                                       Rho^2*w2/(1 - Rho^2)*(ratioB^2 + ratioB*B)  + 2*w2)
+  secder.es <- 1/(sigma.res.expl^2)*(q*Rho/(sqrt(1 - Rho^2))*ratioB -
+                                       Rho^2*w2/(1 - Rho^2)*(ratioB^2 + ratioB*B)  - 2*w2)
 
-  hess.es <- -crossprod(c(secder.es), X.expl)
+  hess.es <- crossprod(c(secder.es), X.expl) # Mixed partial derivative wrt the parameters of model.expl and the error term standard deviation of model.expl
 
-  secder.ss <- ratioB/(sigma.res.expl^2)*(ratioB*Rho^2*w2^2/(1 - Rho^2) +
-                                            B*Rho^2*w2^2/(1 - Rho^2) + 2*q*Rho*w2/sqrt(1 - Rho^2)) +
+  secder.ss <- ratioB/(sigma.res.expl^2)*(-ratioB*Rho^2*w2^2/(1 - Rho^2) -
+                                            B*Rho^2*w2^2/(1 - Rho^2) + 2*q*Rho*w2/sqrt(1 - Rho^2)) -
     3*w2^2/(sigma.res.expl^2)
 
-  hess.ss <- -sum(secder.ss) + n/(sigma.res.expl^2)
+  hess.ss <- sum(secder.ss) + n/(sigma.res.expl^2) # Second partial derivative wrt the error term standard deviation of model.expl
 
   hess <- rbind(cbind(hess.resp, t(hess.er), t(hess.sr)), cbind(hess.er, hess.expl, t(hess.es)),
                 cbind(hess.sr, hess.es, hess.ss))
@@ -1170,49 +1214,52 @@ hess.cb <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #' @export
 hess.cc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp, outc.expl = outc.expl){
 
+  # Separating the coefficients from model.resp and model.expl
   d.resp <- dim(X.resp)[2]
   coef.resp <- as.matrix(par[1:d.resp])
   expl.coef <- as.matrix(par[(d.resp + 2):(length(par) - 1)])
   sigma.res.resp <- par[d.resp + 1]
   sigma.res.expl <- par[length(par)]
 
+  # Components to be used in the calculation of the hessians
   n <- length(outc.resp)
   q1 <- outc.expl - X.expl%*%expl.coef
   q2 <- outc.resp - X.resp%*%coef.resp
 
-  hess.expl <- -crossprod(1/((1 - Rho^2)*sigma.res.expl^2)*X.expl, X.expl)
+  # Calculating the hessians of the log-likelihood wrt to the parameters of model.resp and model.expl
+  hess.expl <- -crossprod(1/((1 - Rho^2)*sigma.res.expl^2)*X.expl, X.expl) # Second partial derivative wrt the parameters of model.expl
 
-  hess.er <- crossprod(Rho/((1 - Rho^2)*sigma.res.expl*sigma.res.resp)*X.expl, X.resp)
+  hess.er <- crossprod(Rho/((1 - Rho^2)*sigma.res.expl*sigma.res.resp)*X.expl, X.resp) # Mixed partial derivative wrt the parameters of model.expl and model.resp
 
-  hess.resp <- -crossprod(1/((1 - Rho^2)*sigma.res.resp^2)*X.resp, X.resp)
+  hess.resp <- -crossprod(1/((1 - Rho^2)*sigma.res.resp^2)*X.resp, X.resp) # Second partial derivative wrt the parameters of model.resp
 
   secder.see <- 1/((1 - Rho^2)*sigma.res.expl^2)*(-2*q1/sigma.res.expl + Rho*q2/sigma.res.resp)
 
-  hess.see <- crossprod(c(secder.see), X.expl)
+  hess.see <- crossprod(c(secder.see), X.expl) # Mixed partial derivative wrt the parameters of model.expl and the error term standard deviation of model.expl
 
   secder.srr <- 1/((1 - Rho^2)*sigma.res.resp^2)*(-2*q2/sigma.res.resp + Rho*q1/sigma.res.expl)
 
-  hess.srr <- crossprod(c(secder.srr), X.resp)
+  hess.srr <- crossprod(c(secder.srr), X.resp) # Mixed partial derivative wrt the parameters of model.resp and the error term standard deviation of model.resp
 
   secder.ser <- Rho/((1 - Rho^2)*sigma.res.expl^2*sigma.res.resp)*q1
 
-  hess.ser <- crossprod(c(secder.ser), X.resp)
+  hess.ser <- crossprod(c(secder.ser), X.resp) # Mixed partial derivative wrt the parameters of model.resp and the error term standard deviation of model.expl
 
   secder.sre <- Rho/((1 - Rho^2)*sigma.res.expl*sigma.res.resp^2)*q2
 
-  hess.sre <- crossprod(c(secder.sre), X.expl)
+  hess.sre <- crossprod(c(secder.sre), X.expl) # Mixed partial derivative wrt the parameters of model.expl and the error term standard deviation of model.resp
 
   secder.sese <- -2/((1 - Rho^2)*sigma.res.expl^3)*(q1^2/sigma.res.expl - Rho*q1*q2/sigma.res.resp) -
     1/((1 - Rho^2)*sigma.res.expl^2)*(q1^2/(sigma.res.expl^2)   )
 
-  hess.sese <- sum(secder.sese) + n/(sigma.res.expl^2)
+  hess.sese <- sum(secder.sese) + n/(sigma.res.expl^2) # Second partial derivative wrt the error term standard deviation of model.expl
 
   secder.srsr <- -2/((1 - Rho^2)*sigma.res.resp^3)*(q2^2/sigma.res.resp - Rho*q1*q2/sigma.res.expl) -
     1/((1 - Rho^2)*sigma.res.resp^2)*(q2^2/(sigma.res.resp^2) )
 
-  hess.srsr <- sum(secder.srsr) + n/(sigma.res.resp^2)
+  hess.srsr <- sum(secder.srsr) + n/(sigma.res.resp^2) # Second partial derivative wrt the error term standard deviation of model.resp
 
-  hess.sesr <- 1/((1 - Rho^2)*sigma.res.expl^2)*sum(Rho*q1*q2/(sigma.res.resp^2))
+  hess.sesr <- 1/((1 - Rho^2)*sigma.res.expl^2)*sum(Rho*q1*q2/(sigma.res.resp^2)) # Mixed partial derivative wrt the error term standard deviation of model.expl and the error term standard deviation of model.resp
 
   hess <- rbind(cbind(hess.resp, t(hess.srr), t(hess.er),t(hess.ser)),
                 cbind(hess.srr, hess.srsr, hess.sre, hess.sesr),

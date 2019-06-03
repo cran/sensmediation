@@ -2,6 +2,8 @@
 #'
 #'@param object object of class \code{"effectsMed"}
 #'@param non.sign logical indicating whether sensitivity analysis results should be printed for non-significant effects.
+#'@param x object of class \code{"summaryeffectsMed"}
+#'@param digits number of digits to be printed.
 #'@param ... additional arguments
 #'@return A list with values:
 #'\item{call}{The matched call}
@@ -36,6 +38,8 @@ summary.effectsMed <- function(object, non.sign = FALSE,...)
 	ans$med.name <- x$med.name
 	ans$non.sign <- non.sign
 	ans$alt.decomposition <- x$alt.decomposition
+	ans$control.value <- x$control.value
+	ans$exp.value <- x$exp.value
 
 
 	i0 <- which(x$Rho == 0)
@@ -171,22 +175,16 @@ plot.effectsMed <- function(x, effect="indirect", xlab = NULL, ylab = NULL, xlim
     graphics::title(main)
   }
 
-#'Print function for objects of class \code{"summaryeffectsMed"}
-#'
-#'@param x object of class \code{"summaryeffectsMed"}
-#'@param digits number of digits to be printed.
-#'@param ... additional arguments
+
+#'@rdname summary.effectsMed
 #'@export
-#'
-
-
 print.summaryeffectsMed <- function(x, digits= max(3, getOption("digits") - 3), ...)
 {
   cat("\nCall:\n", deparse(x$call), "\n\n\n", sep = "")
 
   cat("Mediation analysis:\n\n")
 
-  cat("Exposure =", x$exp.name, "  Mediator =", x$med.name, "\n\n")
+  cat("Exposure =", x$exp.name, "(exposed =", x$exp.value, ", control =", x$control.value, ")","  Mediator =", x$med.name, "\n\n")
 
   if(length(x$covariates)){
     cat("Effects conditional on the covariate values\n\n")
@@ -198,7 +196,6 @@ print.summaryeffectsMed <- function(x, digits= max(3, getOption("digits") - 3), 
 
   if (length(x$effects))
     stats::printCoefmat(x$effects, digits = digits, print.gap = 3)
-
   else cat("No coefficients\n")
 
   cat("\n\n\n")
@@ -266,6 +263,7 @@ print.summaryeffectsMed <- function(x, digits= max(3, getOption("digits") - 3), 
   invisible(x)
 
 }
+
 
 
 

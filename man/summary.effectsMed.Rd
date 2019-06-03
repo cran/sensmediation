@@ -2,9 +2,13 @@
 % Please edit documentation in R/mediationmethods.R
 \name{summary.effectsMed}
 \alias{summary.effectsMed}
+\alias{print.summaryeffectsMed}
 \title{Summary function for objects of class \code{"effectsMed"}}
 \usage{
 \method{summary}{effectsMed}(object, non.sign = FALSE, ...)
+
+\method{print}{summaryeffectsMed}(x, digits = max(3, getOption("digits")
+  - 3), ...)
 }
 \arguments{
 \item{object}{object of class \code{"effectsMed"}}
@@ -12,6 +16,10 @@
 \item{non.sign}{logical indicating whether sensitivity analysis results should be printed for non-significant effects.}
 
 \item{...}{additional arguments}
+
+\item{x}{object of class \code{"summaryeffectsMed"}}
+
+\item{digits}{number of digits to be printed.}
 }
 \value{
 A list with values:

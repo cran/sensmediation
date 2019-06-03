@@ -8,17 +8,17 @@
 \alias{grr.cc}
 \title{Analytic gradients of the loglikelihood functions for ML estimation of regression parameters}
 \usage{
-grr.bb(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+grr.bb(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-grr.bc(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+grr.bc(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-grr.cb(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+grr.cb(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 
-grr.cc(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.resp,
-  outc.expl = outc.expl)
+grr.cc(par, Rho, X.expl = X.expl, X.resp = X.resp,
+  outc.resp = outc.resp, outc.expl = outc.expl)
 }
 \arguments{
 \item{par}{Vector of parameter values.}

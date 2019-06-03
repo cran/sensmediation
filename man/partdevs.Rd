@@ -8,15 +8,16 @@
 \alias{partdevs.cc}
 \title{Implementations of the partial derivatives (gradients) of the expressions for the direct, indirect and total effects. Used to calculate standard errors (delta method).}
 \usage{
-partdevs.bb(beta0, beta1, beta2, beta3, theta0, theta1, theta2, theta3, theta4,
-  theta5, theta6, theta7, x.med, x.out, t.de, t.ie, exp.value, control.value)
-
-partdevs.bc(beta0, beta1, beta2, beta3, theta2, theta3, theta6, theta7, x.med,
-  x.out, t.de, t.ie, exp.value, control.value)
-
-partdevs.cb(beta0, beta1, beta2, beta3, theta0, theta1, theta2, theta3, theta4,
-  theta5, theta6, theta7, sigma.eta, x.med, x.out, t.de, t.ie, exp.value,
+partdevs.bb(beta0, beta1, beta2, beta3, theta0, theta1, theta2, theta3,
+  theta4, theta5, theta6, theta7, x.med, x.out, t.de, t.ie, exp.value,
   control.value)
+
+partdevs.bc(beta0, beta1, beta2, beta3, theta2, theta3, theta6, theta7,
+  x.med, x.out, t.de, t.ie, exp.value, control.value)
+
+partdevs.cb(beta0, beta1, beta2, beta3, theta0, theta1, theta2, theta3,
+  theta4, theta5, theta6, theta7, sigma.eta, x.med, x.out, t.de, t.ie,
+  exp.value, control.value)
 
 partdevs.cc(beta0, beta1, beta2, beta3, theta2, theta3, theta6, theta7,
   exp.value, control.value, x.med, x.out, t.de, t.ie)
