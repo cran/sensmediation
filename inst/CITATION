@@ -1,0 +1,24 @@
+bibentry(
+  bibtype  = "Article",
+  title    = "Sensitivity analysis for unobserved confounding of direct and indirect effects using uncertainty intervals",
+  author   = "Anita Lindmark, Xavier de Luna, Marie Eriksson",
+  journal  = "Statistics in Medicine",
+  year     = 2018,
+  volume   = "37",
+  number   = "10",
+  pages    = "1744--1762",
+  doi      = "10.1002/sim.7620",
+  header   = "To cite sensmediation in publications use:"
+)
+
+bibentry(
+  bibtype  = "Article",
+  title    = "Sensitivity analysis for unobserved confounding in causal mediation analysis allowing for effect modification, censoring and truncation",
+  author   = "Anita Lindmark",
+  journal  = "Statistical Methods & Applications",
+  year     = 2022,
+  volume   = 31,
+  pages    = 785--814,
+  doi      = "10.1007/s10260-021-00611-4",
+  header   = "and:"
+)

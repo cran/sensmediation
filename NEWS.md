@@ -1,3 +1,9 @@
+# sensmediation 0.3.1
+
+* Added reference to Lindmark (2022).
+* Added a clarification on the types of exposure variables allowed to the help-file of `sensmediation`.
+* Added missing package anchors for Rd \link{} targets. 
+
 # sensmediation 0.3.0
 
 * Fixed a bug in the `calc.effects` function that could affect the estimated direct and indirect effects with moderation on more than one covariate

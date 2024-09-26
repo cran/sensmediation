@@ -8,17 +8,41 @@
 \alias{hess.cc}
 \title{Analytic Hessians of the loglikelihood functions for ML estimation of regression parameters}
 \usage{
-hess.bb(par, Rho, X.expl = X.expl, X.resp = X.resp,
-  outc.resp = outc.resp, outc.expl = outc.expl)
+hess.bb(
+  par,
+  Rho,
+  X.expl = X.expl,
+  X.resp = X.resp,
+  outc.resp = outc.resp,
+  outc.expl = outc.expl
+)
 
-hess.bc(par, Rho, X.expl = X.expl, X.resp = X.resp,
-  outc.resp = outc.resp, outc.expl = outc.expl)
+hess.bc(
+  par,
+  Rho,
+  X.expl = X.expl,
+  X.resp = X.resp,
+  outc.resp = outc.resp,
+  outc.expl = outc.expl
+)
 
-hess.cb(par, Rho, X.expl = X.expl, X.resp = X.resp,
-  outc.resp = outc.resp, outc.expl = outc.expl)
+hess.cb(
+  par,
+  Rho,
+  X.expl = X.expl,
+  X.resp = X.resp,
+  outc.resp = outc.resp,
+  outc.expl = outc.expl
+)
 
-hess.cc(par, Rho, X.expl = X.expl, X.resp = X.resp,
-  outc.resp = outc.resp, outc.expl = outc.expl)
+hess.cc(
+  par,
+  Rho,
+  X.expl = X.expl,
+  X.resp = X.resp,
+  outc.resp = outc.resp,
+  outc.expl = outc.expl
+)
 }
 \arguments{
 \item{par}{Vector of parameter values.}
@@ -39,5 +63,5 @@ exposure, mediator and outcome models. The functions are named according to the 
 stands for binary probit regression and \code{c} stands for linear regression.
 }
 \seealso{
-\code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+\code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 }

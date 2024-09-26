@@ -4,9 +4,17 @@
 \alias{plot.effectsMed}
 \title{Plot function for objects of class \code{"effectsMed"}}
 \usage{
-\method{plot}{effectsMed}(x, effect = "indirect", xlab = NULL,
-  ylab = NULL, xlim = NULL, ylim = NULL, main = NULL,
-  lwd = graphics::par("lwd"), ...)
+\method{plot}{effectsMed}(
+  x,
+  effect = "indirect",
+  xlab = NULL,
+  ylab = NULL,
+  xlim = NULL,
+  ylim = NULL,
+  main = NULL,
+  lwd = graphics::par("lwd"),
+  ...
+)
 }
 \arguments{
 \item{x}{object of class \code{"effectsMed"}}

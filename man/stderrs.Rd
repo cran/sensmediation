@@ -8,17 +8,54 @@
 \alias{stderr.cc}
 \title{Functions to calculate standard errors of the direct, indirect and total effects using the delta method.}
 \usage{
-stderr.bb(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decomposition,
-  exp.value, control.value)
+stderr.bb(
+  Rho,
+  betas,
+  thetas,
+  sigma.pars,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-stderr.bc(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decomposition,
-  exp.value, control.value)
+stderr.bc(
+  Rho,
+  betas,
+  thetas,
+  sigma.pars,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-stderr.cb(Rho, betas, thetas, sigma.eta, sigma.pars, x.med, x.out,
-  alt.decomposition, exp.value, control.value)
+stderr.cb(
+  Rho,
+  betas,
+  thetas,
+  sigma.eta,
+  sigma.pars,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-stderr.cc(Rho, betas, thetas, sigma.pars, x.med, x.out, alt.decomposition,
-  exp.value, control.value)
+stderr.cc(
+  Rho,
+  betas,
+  thetas,
+  sigma.pars,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 }
 \arguments{
 \item{Rho}{The sensitivity parameter vector.}

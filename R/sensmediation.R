@@ -24,11 +24,11 @@ NULL
 #'@details
 #'To obtain the ML estimates of the regression parameters used to calculate mediation effects and perform sensitivity analysis
 #'\code{sensmediation} calls \code{\link{coefs.sensmed}}. The maximization of the log-likelihood is performed using
-#'\code{\link{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
+#'\code{\link[maxLik]{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
 #'
 #'The mediator and outcome models (and exposure model for \code{type = "zm"} or \code{"zy"}) should be fitted using \code{glm} and can be of two types, probit models (\code{family = binomial(link = 'probit')})
 #'for binary mediators or outcomes (exposures) and linear regression models (\code{family = gaussian}) for
-#'continuous mediators or outcomes (exposures). The outcome model may contain exposure-mediator, exposure-covariate,
+#'continuous mediators or outcomes (exposures). Note that the exposure can either be binary or continuous, categorical exposures with more than two levels are not currently supported. The outcome model may contain exposure-mediator, exposure-covariate,
 #'mediator-covariate and exposure-mediator-covariate interactions. The mediator model may contain exposure-covariate interactions.
 #'All models may also contain interactions between covariates. Note, however that interactions may not be included in a model without
 #'also including the main effects of the interacting variables. That is, interactions should be specified either as \code{X1*X2} or
@@ -95,7 +95,9 @@ NULL
 #'\item{sigma.thetabeta}{a list with the joint covariance matrix of the outcome and mediator model parameters for each value of \code{Rho}. Note that the covariance matrix is constructed for all estimated parameters listed in \code{betas} and \code{thetas} but that components not included in the input mediator and outcome models are set to 0.}
 #'@export
 #'@author Anita Lindmark
-#'@references Lindmark, A., de Luna, X., Eriksson, M. (2018) Sensitivity Analysis for Unobserved Confounding of Direct and Indirect Effects Using Uncertainty Intervals, \emph{Statistics in Medicine}, \bold{37(10)}, pp 1744--1762.
+#'@references Lindmark, A., de Luna, X., Eriksson, M. (2018) Sensitivity Analysis for Unobserved Confounding of Direct and Indirect Effects Using Uncertainty Intervals, \emph{Statistics in Medicine}, \bold{37(10)}, pp 1744--1762, doi:10.1002/sim.7620.
+#'
+#' Lindmark A (2022). Sensitivity analysis for unobserved confounding in causal mediation analysis allowing for effect modification, censoring and truncation. \emph{Statistical Methods & Applications}, \bold{31}, pp 785--814, doi:10.1007/s10260-021-00611-4.
 #'@seealso \code{\link{more.effects}} which can be used to calculate additional direct and indirect effects with sensitivity analysis using the same sensitivity parameter without running the optimization again.
 #'@examples
 #'

@@ -42,15 +42,15 @@ A list with elements:
 \item{sigma.res.resp}{If \code{model.resp} is linear, a column matrix with the estimated residual standard deviation for \code{model.resp} over the range of \code{Rho}.}
 \item{value}{The values of the -loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}.}
 \item{sigmas}{A list with the covariance matrices for the model parameters in \code{model.expl} and \code{model.resp} for each \code{Rho}.}
-\item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link{maxLik}} for more information.}
+\item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link[maxLik]{maxLik}} for more information.}
 }
 \description{
 Functions for ML estimation of regression parameters for sensitivity analysis for different combinations of exposure, mediator and outcome models. The functions are named according to the convention \code{ML."model.expl type""model.resp type"} where \code{b}
 stands for binary probit regression and \code{c} stands for linear regression. The optimization is performed using
-\code{\link{maxLik}}. The functions are intended to be called through \code{\link{coefs.sensmed}}, not on their own.
+\code{\link[maxLik]{maxLik}}. The functions are intended to be called through \code{\link{coefs.sensmed}}, not on their own.
 }
 \seealso{
-\code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+\code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 }
 \author{
 Anita Lindmark

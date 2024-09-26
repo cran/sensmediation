@@ -4,9 +4,18 @@
 \alias{calc.effects}
 \title{Function for estimation of natural direct and indirect effects and sensitivity analysis for unobserved mediator-outcome confounding}
 \usage{
-calc.effects(ML.object, type = "my", exp.name, med.name,
-  covariates = NULL, alt.decomposition = FALSE, exp.value = 1,
-  control.value = 0, med.model = NULL, out.model = NULL)
+calc.effects(
+  ML.object,
+  type = "my",
+  exp.name,
+  med.name,
+  covariates = NULL,
+  alt.decomposition = FALSE,
+  exp.value = 1,
+  control.value = 0,
+  med.model = NULL,
+  out.model = NULL
+)
 }
 \arguments{
 \item{ML.object}{object from \code{\link{coefs.sensmed}}}

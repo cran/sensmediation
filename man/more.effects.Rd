@@ -4,8 +4,14 @@
 \alias{more.effects}
 \title{Estimate additional natural direct and indirect effects based on an \code{"effectsMed"} object}
 \usage{
-more.effects(sensmed.object, conf.level = 0.95, covariates = NULL,
-  alt.decomposition = FALSE, exp.value = NULL, control.value = NULL)
+more.effects(
+  sensmed.object,
+  conf.level = 0.95,
+  covariates = NULL,
+  alt.decomposition = FALSE,
+  exp.value = NULL,
+  control.value = NULL
+)
 }
 \arguments{
 \item{sensmed.object}{an object of class "effectsMed" for which additional effects are to be calculated.}

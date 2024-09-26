@@ -7,8 +7,7 @@
 \usage{
 \method{summary}{effectsMed}(object, non.sign = FALSE, ...)
 
-\method{print}{summaryeffectsMed}(x, digits = max(3, getOption("digits")
-  - 3), ...)
+\method{print}{summaryeffectsMed}(x, digits = max(3, getOption("digits") - 3), ...)
 }
 \arguments{
 \item{object}{object of class \code{"effectsMed"}}

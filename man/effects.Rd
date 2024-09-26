@@ -8,17 +8,50 @@
 \alias{eff.cc}
 \title{Functions to calculate natural direct and indirect effects.}
 \usage{
-eff.bb(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value,
-  control.value)
+eff.bb(
+  Rho,
+  betas,
+  thetas,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-eff.bc(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value,
-  control.value)
+eff.bc(
+  Rho,
+  betas,
+  thetas,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-eff.cb(Rho, betas, thetas, sigma.eta, x.med, x.out, alt.decomposition,
-  exp.value, control.value)
+eff.cb(
+  Rho,
+  betas,
+  thetas,
+  sigma.eta,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 
-eff.cc(Rho, betas, thetas, x.med, x.out, alt.decomposition, exp.value,
-  control.value)
+eff.cc(
+  Rho,
+  betas,
+  thetas,
+  x.med,
+  x.out,
+  alt.decomposition,
+  exp.value,
+  control.value
+)
 }
 \arguments{
 \item{Rho}{The sensitivity parameter vector.}

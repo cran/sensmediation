@@ -32,15 +32,15 @@ coefs.sensmed(model.expl, model.resp, Rho, progress = TRUE, ...)
 \item{outc.resp}{The outcome variable of \code{model.resp}.}
 \item{outc.expl}{The outcome variable of \code{model.expl}.}
 \item{sigmas}{A list with the estimated covariance matrices for the regression parameters of \code{model.resp} and \code{model.expl} over \code{Rho}.}
-\item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link{maxLik}} for more information.}
-\item{value}{The values of the loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}, see \code{\link{maxLik}}.}
+\item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link[maxLik]{maxLik}} for more information.}
+\item{value}{The values of the loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}, see \code{\link[maxLik]{maxLik}}.}
 }
 \description{
 This function gives ML estimates of the regression parameters used to calculate mediation effects and perform sensitivity analysis. The optimization is
-performed using \code{\link{maxLik}}, see Details for more information. Called by \code{\link{sensmediation}}.
+performed using \code{\link[maxLik]{maxLik}}, see Details for more information. Called by \code{\link{sensmediation}}.
 }
 \details{
-The maximization of the log-likelihood is performed using \code{\link{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
+The maximization of the log-likelihood is performed using \code{\link[maxLik]{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
 }
 \examples{
 

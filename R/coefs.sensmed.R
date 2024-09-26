@@ -1,7 +1,7 @@
 #'ML estimation of regression parameters for calculation of direct and indirect effects under unobserved confounding
 #'
 #'This function gives ML estimates of the regression parameters used to calculate mediation effects and perform sensitivity analysis. The optimization is
-#'performed using \code{\link{maxLik}}, see Details for more information. Called by \code{\link{sensmediation}}.
+#'performed using \code{\link[maxLik]{maxLik}}, see Details for more information. Called by \code{\link{sensmediation}}.
 #'@param model.expl Fitted \code{\link{glm}} model object. If sensitivity analysis to mediator-outcome confounding the mediator model. Otherwise the exposure model.
 #'@param model.resp Fitted \code{\link{glm}} model object. If sensitivity analysis to exposure-mediator confounding the mediator model. Otherwise the outcome model.
 #'@param Rho The sensitivity parameter vector. If \code{type="my"} the correlation between the error terms in the mediator and outcome models. If \code{type="zm"} the correlation between the error terms in the exposure and mediator models. If \code{type="zy"} the correlation between the error terms in the exposure and outcome models.
@@ -9,7 +9,7 @@
 #'@param ... Additional arguments to be passed on to the \code{maxLik} function. Can be used to set the \code{method} and \code{control} arguments of the \code{maxLik} function.
 
 #'@details
-#'The maximization of the log-likelihood is performed using \code{\link{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
+#'The maximization of the log-likelihood is performed using \code{\link[maxLik]{maxLik}}, the default is to use the Newton-Raphson method and an analytic gradient and Hessian.
 #'@return \code{coefs.sensmed} returns a list with elements:
 #'\item{call}{The matched call}
 #' \item{coef}{A matrix with the estimated regression parameters for \code{model.resp} over the range of \code{Rho}. One column per value of \code{Rho}.}
@@ -24,8 +24,8 @@
 #' \item{outc.resp}{The outcome variable of \code{model.resp}.}
 #' \item{outc.expl}{The outcome variable of \code{model.expl}.}
 #' \item{sigmas}{A list with the estimated covariance matrices for the regression parameters of \code{model.resp} and \code{model.expl} over \code{Rho}.}
-#' \item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link{maxLik}} for more information.}
-#' \item{value}{The values of the loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}, see \code{\link{maxLik}}.}
+#' \item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link[maxLik]{maxLik}} for more information.}
+#' \item{value}{The values of the loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}, see \code{\link[maxLik]{maxLik}}.}
 #' @author Anita Lindmark
 #' @references Henningsen, A., Toomet, O. (2011). maxLik: A Package for Maximum Likelihood Estimation in R, \emph{Computational Statistics}, \bold{26(3)}, pp. 443--458.
 #' @export
@@ -95,7 +95,7 @@ coefs.sensmed <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 #'
 #'Functions for ML estimation of regression parameters for sensitivity analysis for different combinations of exposure, mediator and outcome models. The functions are named according to the convention \code{ML."model.expl type""model.resp type"} where \code{b}
 #'stands for binary probit regression and \code{c} stands for linear regression. The optimization is performed using
-#'\code{\link{maxLik}}. The functions are intended to be called through \code{\link{coefs.sensmed}}, not on their own.
+#'\code{\link[maxLik]{maxLik}}. The functions are intended to be called through \code{\link{coefs.sensmed}}, not on their own.
 #'
 #'@param model.expl Fitted \code{\link{glm}} model object (probit or linear). If sensitivity analysis to mediator-outcome confounding the mediator model. Otherwise the exposure model.
 #'@param model.resp Fitted \code{\link{glm}} model object (probit or linear). If sensitivity analysis to exposure-mediator confounding the mediator model. Otherwise the outcome model.
@@ -116,9 +116,9 @@ coefs.sensmed <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 #' \item{sigma.res.resp}{If \code{model.resp} is linear, a column matrix with the estimated residual standard deviation for \code{model.resp} over the range of \code{Rho}.}
 #' \item{value}{The values of the -loglikelihood function for the best set of regression parameters from the optimization for each \code{Rho}.}
 #' \item{sigmas}{A list with the covariance matrices for the model parameters in \code{model.expl} and \code{model.resp} for each \code{Rho}.}
-#' \item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link{maxLik}} for more information.}
+#' \item{max.info}{Information about the maximization (whether or not the convergence was successful, \code{message}, \code{method} and number of iterations) for each \code{Rho}, see \code{\link[maxLik]{maxLik}} for more information.}
 #' @author Anita Lindmark
-#' @seealso \code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+#' @seealso \code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 #' @name ML
 NULL
 
@@ -773,7 +773,7 @@ ML.cc <- function(model.expl, model.resp, Rho, progress = TRUE, ...){
 #'@param X.resp The model matrix (see \code{\link{model.matrix}}) of \code{model.resp}
 #'@param outc.resp The outcome of \code{model.resp}, a vector.
 #'@param outc.expl The outcome of \code{model.expl}, a column matrix.
-#' @seealso \code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+#' @seealso \code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 #' @name LogL
 NULL
 
@@ -893,7 +893,7 @@ LogL.cc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc
 #'@param X.resp The model matrix (see \code{\link{model.matrix}}) of \code{model.resp}
 #'@param outc.resp The outcome of \code{model.resp}, a vector.
 #'@param outc.expl The outcome of \code{model.expl}, a column matrix.
-#' @seealso \code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+#' @seealso \code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 #' @name grr
 NULL
 
@@ -1042,7 +1042,7 @@ grr.cc <- function(par, Rho, X.expl = X.expl, X.resp = X.resp, outc.resp = outc.
 #'@param X.resp The model matrix (see \code{\link{model.matrix}}) of \code{model.resp}
 #'@param outc.resp The outcome of \code{model.resp}, a vector.
 #'@param outc.expl The outcome of \code{model.expl}, a column matrix.
-#' @seealso \code{\link{coefs.sensmed}}, \code{\link{maxLik}}
+#' @seealso \code{\link{coefs.sensmed}}, \code{\link[maxLik]{maxLik}}
 #' @name hess
 NULL
 
